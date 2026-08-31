@@ -5,7 +5,8 @@ Meme Discord bot built on discordx + discord.js v14 (same stack as starbot).
 ## Features
 
 1. **Rare 67/69 reactions** — every guild message has a 1 in 1000 chance of getting reacted with 6️⃣7️⃣ or 6️⃣9️⃣. A falloff window prevents a channel from triggering twice within 5 messages.
-2. **Cosmic uwu/owo replies** — any message containing `uwu` or `owo` gets a one-sentence reply from Rebecca, the project's cosmic frog mascot (handcuffs and all), generated via the OpenAI-compatible API using the last 20 messages as context.
+2. **TrueSpec cable reactions** — any message mentioning "cable" has a 1 in 4 chance of getting the TrueSpec server emoji; otherwise it still goes through the 67/69 roll.
+3. **Cosmic uwu/owo replies** — any message containing `uwu` or `owo` gets a one-sentence reply from Rebecca, the project's cosmic frog mascot (handcuffs and all), generated via the OpenAI-compatible API using the last 20 messages as context.
 
 ## Permissions
 
