@@ -11,9 +11,11 @@ export const REACTION_EMOJI: Record<MemeReaction, string[]> = {
 export class ReactionRoller {
   private sinceLastTrigger = new Map<string, number>();
 
+  constructor(private triggerChance: number = TRIGGER_CHANCE) {}
+
   recordAndRoll(channelId: string, rng: () => number = Math.random): MemeReaction | null {
     const since = this.sinceLastTrigger.get(channelId) ?? FALLOFF_MESSAGES;
-    const triggered = since >= FALLOFF_MESSAGES && rng() < TRIGGER_CHANCE;
+    const triggered = since >= FALLOFF_MESSAGES && rng() < this.triggerChance;
     if (triggered) {
       this.sinceLastTrigger.set(channelId, 0);
       return rng() < 0.5 ? '67' : '69';
