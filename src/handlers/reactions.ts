@@ -30,7 +30,12 @@ export class MemeReactions {
     );
 
     if (content.includes('uwu') || content.includes('owo')) {
-      await this.replySpace(message, client);
+      log.info({ channelId: message.channelId, author: message.author.username }, 'uwu/owo detected, replying');
+      try {
+        await this.replySpace(message, client);
+      } catch (err) {
+        log.error({ err }, 'Failed to reply');
+      }
       return;
     }
 
