@@ -1,5 +1,5 @@
-import { Client, Discord, On } from 'discordx';
-import type { Message } from 'discord.js';
+import { Client, Discord, On, Once } from 'discordx';
+import { Events, type Message } from 'discord.js';
 import { REACTION_EMOJI, ReactionRoller } from '../roller.js';
 import { getHistoryContext } from '../history.js';
 import { safeGenerateSpaceReply } from '../llm.js';
@@ -10,11 +10,25 @@ const roller = new ReactionRoller();
 
 @Discord()
 export class MemeReactions {
-  @On({ event: 'messageCreate' })
+  @Once({ event: Events.ClientReady })
+  async ready([client]: [Client]): Promise<void> {
+    log.info(`Logged in as ${client.user!.tag}`);
+    log.info(`Bot is in ${client.guilds.cache.size} guild(s):`);
+    for (const guild of client.guilds.cache.values()) {
+      log.info(`  - ${guild.name} (${guild.id})`);
+    }
+  }
+
+  @On({ event: Events.MessageCreate })
   async onMessage([message]: [Message], client: Client): Promise<void> {
     if (message.author.bot || !message.guild || !message.channel.isTextBased()) return;
 
     const content = message.content.toLowerCase();
+    log.debug(
+      { guildId: message.guildId, channelId: message.channelId, author: message.author.username, content: message.content },
+      'Message seen',
+    );
+
     if (content.includes('uwu') || content.includes('owo')) {
       await this.replySpace(message, client);
       return;

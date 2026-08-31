@@ -15,7 +15,10 @@ const client = new Client({
   silent: true,
 });
 
-client.login(config.token);
+client.login(config.token).catch((err) => {
+  log.fatal({ err }, 'Login failed');
+  process.exit(1);
+});
 
 function shutdown() {
   log.info('Shutting down...');
