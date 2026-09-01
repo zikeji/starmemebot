@@ -6,7 +6,7 @@ const TRIGGER_CHANCE = 0.1;
 
 export const cyan: Meme = {
   name: 'cyan',
-  shouldFire: (message, rng) =>
+  shouldFire: (message, _client, rng) =>
     message.content.toLowerCase().includes('cyan') && rng() < TRIGGER_CHANCE,
   run: async (message: Message) => {
     for (const emoji of CYAN_REACTION) {

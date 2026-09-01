@@ -6,7 +6,7 @@ const TRIGGER_CHANCE = 0.25;
 
 export const trueSpec: Meme = {
   name: 'true-spec',
-  shouldFire: (message, rng) =>
+  shouldFire: (message, _client, rng) =>
     message.content.toLowerCase().includes('cable') && rng() < TRIGGER_CHANCE,
   run: async (message: Message) => {
     await message.react(TrueSpec);

@@ -26,7 +26,7 @@ export class MemeReactions {
     );
 
     for (const meme of memes) {
-      if (!meme.shouldFire(message, Math.random)) continue;
+      if (!meme.shouldFire(message, client, Math.random)) continue;
       try {
         await meme.run(message, client);
       } catch (err) {
