@@ -3,6 +3,7 @@ import { ChannelType } from 'discord.js';
 import { loadConfig } from './config.js';
 import { formatMessageLine } from './history.js';
 import { createLogger } from './logger.js';
+import { getWikiStatus, searchWiki } from './wiki/wiki.js';
 
 const log = createLogger('llm');
 const LLM_TIMEOUT_MS = 15_000;
@@ -16,6 +17,13 @@ const BASE_SYSTEM_PROMPT = [
   '1. Keep responses to EXACTLY one short sentence.',
   '2. Always include the frog emoji (🐸), at least one space emoji (🌌🌠🚀⭐🪐💫🌙☄️🛸), and a kaomoji.',
   '3. Be incredibly enthusiastic and uwu in style.',
+].join('\n');
+
+const SERVER_CONTEXT = [
+  'Context: This Discord server is built around the StarPilot project — a fork of OpenPilot, the open source ADAS (advanced driver assistance) software by comma.ai (https://comma.ai).',
+  'Repos: StarPilot — https://github.com/firestar5683/StarPilot; upstream OpenPilot — https://github.com/commaai/openpilot.',
+  'The primary maintainer is "firestar" (also known as "firestar4430" or "firestar5683"; Discord user id 446126627701915653, mention <@446126627701915653>) — all these names refer to the same person.',
+  'Conversations may mix project talk (forks, devices, dashcams, car models) with casual memes. Do not answer or explain technical/safety topics about ADAS/OpenPilot/StarPilot yourself — search_wiki, then just point people at the most relevant wiki page link (https://wiki.firestar.link/), or the community and source code if nothing fits. Keep your reply playful.',
 ].join('\n');
 
 const TOOLS_PROMPT = [
@@ -55,6 +63,21 @@ const TOOL_DEFINITIONS = [
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Name or partial name to search for' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_wiki',
+      description:
+        'Search the StarPilot wiki (https://wiki.firestar.link/) for project documentation. Use before answering questions about StarPilot/OpenPilot features, setup, cars, or hardware.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search keywords' },
         },
         required: ['query'],
       },
@@ -289,7 +312,7 @@ export async function generateSpaceReply(chatContext: string, options: Completio
   const images = triggerMessage ? await collectImageAttachments(triggerMessage, vision) : [];
 
   let systemPrompt = extraSystemPrompt ? `${BASE_SYSTEM_PROMPT}\n\n${extraSystemPrompt}` : BASE_SYSTEM_PROMPT;
-  systemPrompt = `${systemPrompt}\n\n${MENTION_GUIDE}`;
+  systemPrompt = `${systemPrompt}\n\n${SERVER_CONTEXT}\n\n${MENTION_GUIDE}`;
   const channels = client && triggerMessage ? await listRelevantChannels(client, triggerMessage) : [];
   if (client && channels.length > 0) {
     const channelList = channels.map((c) => `- ${c.name} (id: ${c.id})`).join('\n');
@@ -372,6 +395,20 @@ export async function generateSpaceReply(chatContext: string, options: Completio
           log.error({ err, query }, 'Tool execution failed');
           return 'Error: failed to search members.';
         });
+      } else if (call.function.name === 'search_wiki') {
+        const query = String(args.query ?? '');
+        if (getWikiStatus() !== 'ready') {
+          result = 'Error: wiki index is unavailable right now.';
+        } else {
+          log.info({ query, triggerChannel: triggerMessage?.channelId }, 'Executing search_wiki');
+          const results = searchWiki(query);
+          result =
+            results.length === 0
+              ? `No wiki pages found for "${query}".`
+              : `Wiki results for "${query}":\n${results
+                  .map((r) => `- ${r.title} (${r.url}): ${r.snippet}`)
+                  .join('\n')}`;
+        }
       } else {
         log.warn({ tool: call.function.name }, 'LLM called unknown tool');
         result = `Error: unknown tool ${call.function.name}.`;

@@ -3,6 +3,7 @@ import { Client, Discord, On, Once } from 'discordx';
 import { ActivityType, Events, type Message } from 'discord.js';
 import { memes } from '../memes/index.js';
 import { createLogger } from '../logger.js';
+import { initWiki } from '../wiki/wiki.js';
 
 const log = createLogger('memes');
 
@@ -35,6 +36,8 @@ export class MemeReactions {
     if (commitHash) {
       client.user!.setActivity({ name: commitHash, type: ActivityType.Watching });
     }
+
+    void initWiki();
   }
 
   @On({ event: Events.MessageCreate })

@@ -8,6 +8,9 @@ export interface BotConfig {
   openaiModel: string;
   /** Comma-separated channel IDs the LLM tools may never read (history context is unaffected). */
   channelDenylist: string[];
+  /** GitHub repo (owner/name) backing https://wiki.firestar.link — must have a docs/ dir of markdown. */
+  wikiRepo: string;
+  wikiCacheDir: string;
   /**
    * Manual override for image input support. Only consulted when the endpoint's
    * /models listing doesn't expose capability info.
@@ -33,5 +36,14 @@ export function loadConfig(): BotConfig {
     .map((id) => id.trim())
     .filter(Boolean);
 
-  return { token, openaiEndpoint, openaiApiKey, openaiModel, channelDenylist, openaiVision: process.env.OPENAI_VISION === 'true' };
+  return {
+    token,
+    openaiEndpoint,
+    openaiApiKey,
+    openaiModel,
+    channelDenylist,
+    wikiRepo: process.env.WIKI_REPO || 'StarPilot-Docs/docs',
+    wikiCacheDir: process.env.WIKI_CACHE_DIR || 'data/wiki',
+    openaiVision: process.env.OPENAI_VISION === 'true',
+  };
 }
