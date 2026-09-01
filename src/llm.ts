@@ -17,8 +17,9 @@ interface ChatCompletionResponse {
   choices: Array<{ message: { content: string } }>;
 }
 
-export async function generateSpaceReply(chatContext: string): Promise<string> {
+export async function generateSpaceReply(chatContext: string, extraSystemPrompt?: string): Promise<string> {
   const { openaiEndpoint, openaiApiKey, openaiModel } = loadConfig();
+  const systemPrompt = extraSystemPrompt ? `${SYSTEM_PROMPT}\n\n${extraSystemPrompt}` : SYSTEM_PROMPT;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
@@ -33,7 +34,7 @@ export async function generateSpaceReply(chatContext: string): Promise<string> {
       body: JSON.stringify({
         model: openaiModel,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           {
             role: 'user',
             content: `Chat context:\n${chatContext}\n\nTask: React to the last person's message with peak cosmic energy!`,
@@ -57,9 +58,9 @@ export async function generateSpaceReply(chatContext: string): Promise<string> {
   return text;
 }
 
-export async function safeGenerateSpaceReply(chatContext: string): Promise<string> {
+export async function safeGenerateSpaceReply(chatContext: string, extraSystemPrompt?: string): Promise<string> {
   try {
-    return await generateSpaceReply(chatContext);
+    return await generateSpaceReply(chatContext, extraSystemPrompt);
   } catch (err) {
     log.error({ err }, 'LLM error');
     return 'UwU! Rebecca got tangled in her handcuffs again~ 🐸🌠 (・ω・)';
