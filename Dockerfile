@@ -7,6 +7,8 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
+ARG COMMIT_SHA
+ENV COMMIT_SHA=$COMMIT_SHA
 RUN npm run build
 
 ENV NODE_ENV=production

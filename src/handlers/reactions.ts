@@ -1,9 +1,25 @@
+import { readFileSync } from 'node:fs';
 import { Client, Discord, On, Once } from 'discordx';
-import { Events, type Message } from 'discord.js';
+import { ActivityType, Events, type Message } from 'discord.js';
 import { memes } from '../memes/index.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('memes');
+
+function getCommitHash(): string | null {
+  const fromEnv = process.env.COMMIT_SHA;
+  if (fromEnv) return fromEnv.slice(0, 7);
+  try {
+    const head = readFileSync('.git/HEAD', 'utf-8').trim();
+    if (head.startsWith('ref: ')) {
+      const refPath = '.git/' + head.slice(5);
+      return readFileSync(refPath, 'utf-8').trim().slice(0, 7);
+    }
+    return head.slice(0, 7);
+  } catch {
+    return null;
+  }
+}
 
 @Discord()
 export class MemeReactions {
@@ -13,6 +29,11 @@ export class MemeReactions {
     log.info(`Bot is in ${client.guilds.cache.size} guild(s):`);
     for (const guild of client.guilds.cache.values()) {
       log.info(`  - ${guild.name} (${guild.id})`);
+    }
+
+    const commitHash = getCommitHash();
+    if (commitHash) {
+      client.user!.setActivity({ name: commitHash, type: ActivityType.Watching });
     }
   }
 
