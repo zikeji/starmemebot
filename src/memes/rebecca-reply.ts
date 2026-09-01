@@ -49,7 +49,9 @@ export const rebeccaReply: Meme = {
     try {
       const extraPrompt = rollBehavior();
       const reply = await safeGenerateSpaceReply(history, { extraSystemPrompt: extraPrompt, client, triggerMessage: message });
-      await message.reply(reply);
+      const sent = await message.reply(reply);
+      // Discord generates link previews even for named markdown links; suppress them.
+      await sent.suppressEmbeds().catch((err) => log.warn({ err }, 'Failed to suppress embeds'));
     } finally {
       typing = false;
       await keepTyping;
