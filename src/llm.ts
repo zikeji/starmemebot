@@ -129,9 +129,61 @@ async function fetchChannelMessages(
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | ContentPart[];
   tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
+}
+
+type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+const MAX_IMAGES = 3;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+let visionSupportCache: boolean | null = null;
+
+async function modelSupportsVision(endpoint: string, apiKey: string, model: string, fallback: boolean): Promise<boolean> {
+  if (visionSupportCache !== null) return visionSupportCache;
+  try {
+    const res = await fetch(`${endpoint}/models`, { headers: { Authorization: `Bearer ${apiKey}` } });
+    if (res.ok) {
+      const data = (await res.json()) as { data?: Array<{ id: string; architecture?: { modality?: string } }> };
+      const entry = data.data?.find((m) => m.id === model);
+      const inputModality = entry?.architecture?.modality?.split('->')[0] ?? '';
+      visionSupportCache = inputModality.includes('image');
+      if (visionSupportCache) return visionSupportCache;
+      log.info({ model }, 'Model listing has no image input capability; falling back to config');
+    } else {
+      log.info({ status: res.status }, 'Models endpoint unavailable; falling back to config for vision support');
+    }
+  } catch (err) {
+    log.info({ err }, 'Models endpoint probe failed; falling back to config for vision support');
+  }
+  visionSupportCache = fallback;
+  return fallback;
+}
+
+export async function collectImageAttachments(message: Message, enabled: boolean): Promise<string[]> {
+  if (!enabled) return [];
+  const attachments = [...message.attachments.values()].filter(
+    (a) => a.contentType?.startsWith('image/') && a.size <= MAX_IMAGE_BYTES,
+  );
+  if (attachments.length === 0) return [];
+  const dataUrls: string[] = [];
+  for (const attachment of attachments.slice(0, MAX_IMAGES)) {
+    const res = await fetch(attachment.url).catch(() => null);
+    if (!res?.ok) {
+      log.warn({ url: attachment.url, status: res?.status }, 'Failed to download image attachment');
+      continue;
+    }
+    const buffer = Buffer.from(await res.arrayBuffer());
+    dataUrls.push(`data:${attachment.contentType};base64,${buffer.toString('base64')}`);
+  }
+  if (dataUrls.length > 0) {
+    log.info({ count: dataUrls.length }, 'Attaching Discord images to LLM request');
+  }
+  return dataUrls;
 }
 
 interface ChatCompletionResponse {
@@ -147,9 +199,17 @@ interface CompletionOptions {
   triggerMessage?: Message;
 }
 
+function buildUserContent(chatContext: string, images: string[]): string | ContentPart[] {
+  const text = `Chat context:\n${chatContext}\n\nTask: React to the last person's message with peak cosmic energy!`;
+  if (images.length === 0) return text;
+  return [{ type: 'text', text }, ...images.map((url) => ({ type: 'image_url' as const, image_url: { url } }))];
+}
+
 export async function generateSpaceReply(chatContext: string, options: CompletionOptions = {}): Promise<string> {
   const { extraSystemPrompt, client, triggerMessage } = options;
-  const { openaiEndpoint, openaiApiKey, openaiModel } = loadConfig();
+  const { openaiEndpoint, openaiApiKey, openaiModel, openaiVision } = loadConfig();
+  const vision = await modelSupportsVision(openaiEndpoint, openaiApiKey, openaiModel, openaiVision);
+  const images = triggerMessage ? await collectImageAttachments(triggerMessage, vision) : [];
 
   let systemPrompt = extraSystemPrompt ? `${BASE_SYSTEM_PROMPT}\n\n${extraSystemPrompt}` : BASE_SYSTEM_PROMPT;
   systemPrompt = `${systemPrompt}\n\n${MENTION_GUIDE}`;
@@ -165,12 +225,25 @@ export async function generateSpaceReply(chatContext: string, options: Completio
     { role: 'system', content: systemPrompt },
     {
       role: 'user',
-      content: `Chat context:\n${chatContext}\n\nTask: React to the last person's message with peak cosmic energy!`,
+      content: buildUserContent(chatContext, images),
     },
   ];
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools);
+    let data: ChatCompletionResponse;
+    try {
+      data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (images.length > 0 && typeof status === 'number' && status < 500) {
+        log.warn({ err }, 'Model rejected image input; retrying without attachments');
+        images.length = 0;
+        messages[1] = { role: 'user', content: buildUserContent(chatContext, []) };
+        data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools);
+      } else {
+        throw err;
+      }
+    }
     const choice = data.choices[0];
     const assistant = choice?.message;
     if (!assistant) throw new Error('Empty response from model');
@@ -250,7 +323,7 @@ async function complete(
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`API error ${res.status}: ${body}`);
+    throw Object.assign(new Error(`API error ${res.status}: ${body}`), { status: res.status });
   }
   return (await res.json()) as ChatCompletionResponse;
 }
