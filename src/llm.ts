@@ -23,7 +23,7 @@ const SERVER_CONTEXT = [
   'Context: This Discord server is built around the StarPilot project — a fork of OpenPilot, the open source ADAS (advanced driver assistance) software by comma.ai (https://comma.ai).',
   'Repos: StarPilot — https://github.com/firestar5683/StarPilot; upstream OpenPilot — https://github.com/commaai/openpilot.',
   'The primary maintainer is "firestar" (also known as "firestar4430" or "firestar5683"; Discord user id 446126627701915653, mention <@446126627701915653>) — all these names refer to the same person.',
-  'Conversations may mix project talk (forks, devices, dashcams, car models) with casual memes. Do not answer or explain technical/safety topics about ADAS/OpenPilot/StarPilot yourself — search_wiki, then just point people at the most relevant wiki page link (https://wiki.firestar.link/), or the community and source code if nothing fits. Keep your reply playful.',
+  'Conversations may mix project talk (forks, devices, dashcams, car models) with casual memes. Whenever someone asks anything about StarPilot/OpenPilot (installing, setup, cars, hardware, features, troubleshooting), you MUST call search_wiki BEFORE replying, then point at the single most relevant page as a markdown link like [Getting Started](https://wiki.firestar.link/getting-started/). Never paste a bare URL (punctuation after it breaks the link) and never explain the topic yourself. If nothing in the wiki fits, defer to the community or source code. Keep your reply playful.',
 ].join('\n');
 
 const TOOLS_PROMPT = [
@@ -73,7 +73,7 @@ const TOOL_DEFINITIONS = [
     function: {
       name: 'search_wiki',
       description:
-        'Search the StarPilot wiki (https://wiki.firestar.link/) for project documentation. Use before answering questions about StarPilot/OpenPilot features, setup, cars, or hardware.',
+        'Search the StarPilot wiki (https://wiki.firestar.link/) for project documentation. You MUST call this before answering ANY question about StarPilot/OpenPilot (install, setup, cars, hardware, features, troubleshooting), even if you think you know the answer. Reply with the single most relevant page URL as a markdown link.',
       parameters: {
         type: 'object',
         properties: {
