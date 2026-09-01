@@ -1,4 +1,4 @@
-import type { Client, Message, TextChannel } from 'discord.js';
+import type { Channel, Client, Message, TextChannel } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { loadConfig } from './config.js';
 import { formatMessageLine } from './history.js';
@@ -84,22 +84,29 @@ export async function listRelevantChannels(client: Client, triggerMessage: Messa
   const guild = client.guilds.cache.get(triggerMessage.guildId!);
   if (!guild) return [];
   const me = guild.members.me!;
-  const readable = guild.channels.cache.filter(
+  // Privacy: only channels the triggering user can ALSO view may be offered or fetched,
+  // otherwise public-channel users could extract private-channel content through the LLM.
+  const viewer = await guild.members.fetch(triggerMessage.author.id).catch(() => null);
+  if (!viewer) return [];
+  const mutuallyReadable = guild.channels.cache.filter(
     (ch) =>
       (ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement) &&
-      ch.permissionsFor(me).has(['ViewChannel', 'ReadMessageHistory']),
+      ch.permissionsFor(me).has(['ViewChannel', 'ReadMessageHistory']) &&
+      ch.permissionsFor(viewer).has('ViewChannel'),
   );
   const referenced = new Set([...triggerMessage.mentions.channels.keys(), ...extractLinkedChannelIds(triggerMessage)]);
   if (triggerMessage.channelId) referenced.add(triggerMessage.channelId);
 
   const relevant: ChannelSummary[] = [];
   for (const id of referenced) {
-    const channel = await resolveReadableChannel(client, guild.id, id);
+    if (await isDenylistedWithAncestors(client, id)) continue;
+    const channel = await resolveReadableChannel(client, guild.id, id, viewer.id);
     if (channel) relevant.push(channel);
   }
-  for (const ch of readable.values()) {
+  for (const ch of mutuallyReadable.values()) {
     if (relevant.length >= MAX_LISTED_CHANNELS) break;
     if (relevant.some((r) => r.id === ch.id)) continue;
+    if (await isDenylistedWithAncestors(client, ch.id)) continue;
     const last = await (ch as TextChannel).messages.fetch({ limit: 1 }).catch(() => null);
     const lastMessage = last?.first();
     if (lastMessage && Date.now() - lastMessage.createdTimestamp < ACTIVITY_WINDOW_MS) {
@@ -113,12 +120,22 @@ async function resolveReadableChannel(
   client: Client,
   guildId: string,
   channelId: string,
+  viewerId: string,
 ): Promise<ChannelSummary | null> {
   if (!/^\d+$/.test(channelId)) return null;
+  if (await isDenylistedWithAncestors(client, channelId)) return null;
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel || channel.isDMBased() || !channel.isTextBased() || channel.guildId !== guildId) return null;
   const guild = client.guilds.cache.get(guildId)!;
-  if (!channel.permissionsFor(guild.members.me!).has(['ViewChannel', 'ReadMessageHistory'])) return null;
+  const me = guild.members.me!;
+  const viewer = guild.members.cache.get(viewerId) ?? (await guild.members.fetch(viewerId).catch(() => null));
+  if (!viewer) return null;
+  if (
+    !channel.permissionsFor(me).has(['ViewChannel', 'ReadMessageHistory']) ||
+    !channel.permissionsFor(viewer).has('ViewChannel')
+  ) {
+    return null;
+  }
   return { id: channel.id, name: channel.name };
 }
 
@@ -127,11 +144,12 @@ async function fetchChannelMessages(
   guildId: string,
   channelId: string,
   limit: number,
+  viewerId: string,
 ): Promise<string> {
-  const channel = await resolveReadableChannel(client, guildId, channelId);
+  const channel = await resolveReadableChannel(client, guildId, channelId, viewerId);
   if (!channel) {
-    log.warn({ channelId }, 'Tool fetch failed: channel not found, not text-based, or not readable');
-    return `Error: channel ${channelId} not found or not readable.`;
+    log.warn({ channelId, viewerId }, 'Tool fetch denied: channel not found or not readable by both bot and viewer');
+    return 'Error: channel not found or not readable.';
   }
   const full = (await client.channels.fetch(channelId).catch(() => null));
   if (!full?.isTextBased()) return 'Error: channel became unreadable.';
@@ -180,6 +198,27 @@ const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 let visionSupportCache: boolean | null = null;
+
+function isDenylistedId(channelId: string): boolean {
+  return loadConfig().channelDenylist.includes(channelId);
+}
+
+function logDenied(channelId: string, via: string) {
+  log.info({ channelId, via }, 'Channel is denylisted (or its parent is); excluding from tool access');
+}
+
+async function isDenylistedWithAncestors(client: Client, channelId: string): Promise<boolean> {
+  let currentId: string | null = channelId;
+  for (let depth = 0; currentId && depth < 5; depth++) {
+    if (isDenylistedId(currentId)) {
+      logDenied(channelId, depth === 0 ? 'self' : `ancestor ${currentId}`);
+      return true;
+    }
+    const parent: Channel | null = await client.channels.fetch(currentId).catch(() => null);
+    currentId = parent && !parent.isDMBased() ? parent.parentId : null;
+  }
+  return false;
+}
 
 async function modelSupportsVision(endpoint: string, apiKey: string, model: string, fallback: boolean): Promise<boolean> {
   if (visionSupportCache !== null) return visionSupportCache;
@@ -316,7 +355,13 @@ export async function generateSpaceReply(chatContext: string, options: Completio
         const channelId = String(args.channel_id ?? '');
         const limit = Number(args.limit ?? 10);
         log.info({ channelId, limit, triggerChannel: triggerMessage?.channelId }, 'Executing fetch_channel_messages');
-        result = await fetchChannelMessages(client!, triggerMessage!.guild!.id, channelId, limit).catch((err) => {
+        result = await fetchChannelMessages(
+          client!,
+          triggerMessage!.guild!.id,
+          channelId,
+          limit,
+          triggerMessage!.author.id,
+        ).catch((err) => {
           log.error({ err, channelId }, 'Tool execution failed');
           return 'Error: failed to fetch messages.';
         });

@@ -6,6 +6,8 @@ export interface BotConfig {
   openaiEndpoint: string;
   openaiApiKey: string;
   openaiModel: string;
+  /** Comma-separated channel IDs the LLM tools may never read (history context is unaffected). */
+  channelDenylist: string[];
   /**
    * Manual override for image input support. Only consulted when the endpoint's
    * /models listing doesn't expose capability info.
@@ -26,5 +28,10 @@ export function loadConfig(): BotConfig {
   const openaiModel = process.env.OPENAI_MODEL;
   if (!openaiModel) throw new Error('OPENAI_MODEL is required');
 
-  return { token, openaiEndpoint, openaiApiKey, openaiModel, openaiVision: process.env.OPENAI_VISION === 'true' };
+  const channelDenylist = (process.env.CHANNEL_DENYLIST ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  return { token, openaiEndpoint, openaiApiKey, openaiModel, channelDenylist, openaiVision: process.env.OPENAI_VISION === 'true' };
 }
