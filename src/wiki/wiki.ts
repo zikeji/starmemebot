@@ -23,6 +23,7 @@ export async function initWiki(): Promise<void> {
     index = new MiniSearch({
       fields: ['title', 'content'],
       storeFields: ['title', 'url', 'path'],
+      idField: 'path',
     });
     index.addAll(pages.map((p) => ({ ...p })));
     state = 'ready';
