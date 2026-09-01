@@ -41,13 +41,12 @@ export class MemeReactions {
   async onMessage([message]: [Message], client: Client): Promise<void> {
     if (message.author.bot || !message.guild || !message.channel.isTextBased()) return;
 
-    log.debug(
-      { guildId: message.guildId, channelId: message.channelId, author: message.author.username, content: message.content },
-      'Message seen',
-    );
-
     for (const meme of memes) {
       if (!meme.shouldFire(message, client, Math.random)) continue;
+      log.debug(
+        { meme: meme.name, channelId: message.channelId, author: message.author.username, content: message.content },
+        'Meme triggered',
+      );
       try {
         await meme.run(message, client);
       } catch (err) {

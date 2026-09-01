@@ -1,12 +1,18 @@
-import type { TextBasedChannel } from 'discord.js';
+import type { Message, TextBasedChannel } from 'discord.js';
 
 const HISTORY_LIMIT = 20;
+
+export function formatMessageLine(m: Message): string {
+  const displayName = m.member?.displayName ?? m.author.username;
+  return `${displayName} (@${m.author.username}, id: ${m.author.id}, mention: <@${m.author.id}>): ${m.content}`;
+}
+
 export async function getHistoryContext(channel: TextBasedChannel, tokenLimit = 1000): Promise<string> {
   const messages = await channel.messages.fetch({ limit: HISTORY_LIMIT });
   const lines = [...messages.values()]
     .reverse()
-    .map((m) => `${m.author.username}: ${m.content}`)
-    .filter((line) => line.trim().length > 0);
+    .filter((m) => m.content.trim().length > 0)
+    .map(formatMessageLine);
 
   const maxChars = tokenLimit * 4;
   let context = lines.join('\n');

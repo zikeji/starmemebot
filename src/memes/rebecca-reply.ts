@@ -1,4 +1,4 @@
-import type { Message } from 'discord.js';
+import type { Client, Message } from 'discord.js';
 import { getHistoryContext } from '../history.js';
 import { safeGenerateSpaceReply } from '../llm.js';
 import { root as log } from '../logger.js';
@@ -37,7 +37,7 @@ export const rebeccaReply: Meme = {
     const content = message.content.toLowerCase();
     return content.includes('uwu') || content.includes('owo');
   },
-  run: async (message: Message) => {
+  run: async (message: Message, client: Client) => {
     const history = await getHistoryContext(message.channel).catch(() => '');
     let typing = true;
     const keepTyping = (async () => {
@@ -48,7 +48,7 @@ export const rebeccaReply: Meme = {
     })();
     try {
       const extraPrompt = rollBehavior();
-      const reply = await safeGenerateSpaceReply(history, extraPrompt);
+      const reply = await safeGenerateSpaceReply(history, { extraSystemPrompt: extraPrompt, client, triggerMessage: message });
       await message.reply(reply);
     } finally {
       typing = false;
