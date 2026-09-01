@@ -46,6 +46,20 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'search_members',
+      description: 'Search server members by (partial) nickname or username, e.g. to find out who someone is.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Name or partial name to search for' },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ] as const;
 
 const ACTIVITY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -125,6 +139,30 @@ async function fetchChannelMessages(
   const lines = [...messages.values()].reverse().filter((m) => m.content.trim().length > 0).map(formatMessageLine);
   if (lines.length === 0) return `#${channel.name}: (no recent text messages)`;
   return `Recent messages from #${channel.name}:\n${lines.join('\n')}`;
+}
+
+const MAX_SEARCH_RESULTS = 10;
+
+async function searchMembers(client: Client, guildId: string, query: string): Promise<string> {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return 'Error: guild not found.';
+  // Cache may be partial for large guilds; ask Discord for current members.
+  await guild.members.fetch({ query, limit: MAX_SEARCH_RESULTS }).catch(() => null);
+  const q = query.toLowerCase();
+  const matches = guild.members.cache
+    .filter(
+      (m) =>
+        m.displayName.toLowerCase().includes(q) ||
+        m.user.username.toLowerCase().includes(q) ||
+        (m.user.globalName?.toLowerCase().includes(q) ?? false),
+    )
+    .first(MAX_SEARCH_RESULTS);
+  if (!matches?.length) return `No members found matching "${query}".`;
+  const lines = matches.map(
+    (m) =>
+      `${m.displayName} (@${m.user.username}, id: ${m.user.id}, mention: <@${m.user.id}>${m.nickname ? `, nickname: ${m.nickname}` : ''}, bot: ${m.user.bot})`,
+  );
+  return `Members matching "${query}":\n${lines.join('\n')}`;
 }
 
 interface ChatMessage {
@@ -265,33 +303,35 @@ export async function generateSpaceReply(chatContext: string, options: Completio
     );
     messages.push(assistant);
     for (const call of toolCalls) {
-      if (call.function.name !== 'fetch_channel_messages') {
-        log.warn({ tool: call.function.name }, 'LLM called unknown tool');
-        messages.push({ role: 'tool', tool_call_id: call.id, content: `Error: unknown tool ${call.function.name}.` });
-        continue;
-      }
-      let args: { channel_id?: string; limit?: number };
+      let args: Record<string, unknown>;
       try {
         args = JSON.parse(call.function.arguments);
       } catch {
-        log.warn({ args: call.function.arguments }, 'LLM tool call had invalid JSON arguments');
+        log.warn({ tool: call.function.name, args: call.function.arguments }, 'LLM tool call had invalid JSON arguments');
         messages.push({ role: 'tool', tool_call_id: call.id, content: 'Error: invalid JSON arguments.' });
         continue;
       }
-      log.info(
-        { channelId: args.channel_id, limit: args.limit, triggerChannel: triggerMessage?.channelId },
-        'Executing fetch_channel_messages',
-      );
-      const result = await fetchChannelMessages(
-        client!,
-        triggerMessage!.guild!.id,
-        args.channel_id ?? '',
-        args.limit ?? 10,
-      ).catch((err) => {
-        log.error({ err, channelId: args.channel_id }, 'Tool execution failed');
-        return 'Error: failed to fetch messages.';
-      });
-      log.info({ channelId: args.channel_id, resultPreview: result.slice(0, 200) }, 'Tool result returned to LLM');
+      let result: string;
+      if (call.function.name === 'fetch_channel_messages') {
+        const channelId = String(args.channel_id ?? '');
+        const limit = Number(args.limit ?? 10);
+        log.info({ channelId, limit, triggerChannel: triggerMessage?.channelId }, 'Executing fetch_channel_messages');
+        result = await fetchChannelMessages(client!, triggerMessage!.guild!.id, channelId, limit).catch((err) => {
+          log.error({ err, channelId }, 'Tool execution failed');
+          return 'Error: failed to fetch messages.';
+        });
+      } else if (call.function.name === 'search_members') {
+        const query = String(args.query ?? '');
+        log.info({ query, triggerChannel: triggerMessage?.channelId }, 'Executing search_members');
+        result = await searchMembers(client!, triggerMessage!.guild!.id, query).catch((err) => {
+          log.error({ err, query }, 'Tool execution failed');
+          return 'Error: failed to search members.';
+        });
+      } else {
+        log.warn({ tool: call.function.name }, 'LLM called unknown tool');
+        result = `Error: unknown tool ${call.function.name}.`;
+      }
+      log.info({ tool: call.function.name, resultPreview: result.slice(0, 200) }, 'Tool result returned to LLM');
       messages.push({ role: 'tool', tool_call_id: call.id, content: result });
     }
   }
