@@ -19,7 +19,8 @@ const BASE_SYSTEM_PROMPT = [
 ].join('\n');
 
 const TOOLS_PROMPT = [
-  'You have access to other channels in this server. If the conversation references an ongoing topic, an inside joke, or people/places from elsewhere in the server, you may call `fetch_channel_messages` to read recent messages from a listed channel before answering.',
+  'You have access to other channels and threads in this server. If the conversation references an ongoing topic, an inside joke, or people/places from elsewhere in the server, you may call `fetch_channel_messages` to read recent messages from a listed channel before answering.',
+  'If a Discord channel link (discord.com/channels/...) appears in the conversation, the ID in the URL is a channel or thread you can fetch directly, even if it is not listed below.',
   'Use it at most a couple of times, only when it would genuinely help you understand the context, then answer normally.',
 ].join('\n');
 
@@ -33,7 +34,8 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'fetch_channel_messages',
-      description: 'Fetch the most recent messages from one of the listed channels.',
+      description:
+        'Fetch the most recent messages from one of the listed channels/threads, or any channel/thread ID appearing in a Discord link in the conversation.',
       parameters: {
         type: 'object',
         properties: {
@@ -54,6 +56,16 @@ export interface ChannelSummary {
   name: string;
 }
 
+const CHANNEL_LINK_RE = /discord(?:app)?\.com\/channels\/\d+\/(\d+)(?:\/\d+)?/g;
+
+export function extractLinkedChannelIds(message: Message): string[] {
+  const ids = new Set<string>();
+  for (const match of message.content.matchAll(CHANNEL_LINK_RE)) {
+    ids.add(match[1]);
+  }
+  return [...ids];
+}
+
 export async function listRelevantChannels(client: Client, triggerMessage: Message): Promise<ChannelSummary[]> {
   const guild = client.guilds.cache.get(triggerMessage.guildId!);
   if (!guild) return [];
@@ -63,16 +75,17 @@ export async function listRelevantChannels(client: Client, triggerMessage: Messa
       (ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement) &&
       ch.permissionsFor(me).has(['ViewChannel', 'ReadMessageHistory']),
   );
-  const mentioned = new Set([...triggerMessage.mentions.channels.keys()]);
-  if (triggerMessage.channelId) mentioned.add(triggerMessage.channelId);
+  const referenced = new Set([...triggerMessage.mentions.channels.keys(), ...extractLinkedChannelIds(triggerMessage)]);
+  if (triggerMessage.channelId) referenced.add(triggerMessage.channelId);
 
   const relevant: ChannelSummary[] = [];
+  for (const id of referenced) {
+    const channel = await resolveReadableChannel(client, guild.id, id);
+    if (channel) relevant.push(channel);
+  }
   for (const ch of readable.values()) {
     if (relevant.length >= MAX_LISTED_CHANNELS) break;
-    if (mentioned.has(ch.id)) {
-      relevant.push({ id: ch.id, name: ch.name });
-      continue;
-    }
+    if (relevant.some((r) => r.id === ch.id)) continue;
     const last = await (ch as TextChannel).messages.fetch({ limit: 1 }).catch(() => null);
     const lastMessage = last?.first();
     if (lastMessage && Date.now() - lastMessage.createdTimestamp < ACTIVITY_WINDOW_MS) {
@@ -82,23 +95,33 @@ export async function listRelevantChannels(client: Client, triggerMessage: Messa
   return relevant.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+async function resolveReadableChannel(
+  client: Client,
+  guildId: string,
+  channelId: string,
+): Promise<ChannelSummary | null> {
+  if (!/^\d+$/.test(channelId)) return null;
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel || channel.isDMBased() || !channel.isTextBased() || channel.guildId !== guildId) return null;
+  const guild = client.guilds.cache.get(guildId)!;
+  if (!channel.permissionsFor(guild.members.me!).has(['ViewChannel', 'ReadMessageHistory'])) return null;
+  return { id: channel.id, name: channel.name };
+}
+
 async function fetchChannelMessages(
   client: Client,
   guildId: string,
   channelId: string,
   limit: number,
 ): Promise<string> {
-  const guild = client.guilds.cache.get(guildId);
-  const channel = guild?.channels.cache.get(channelId);
-  if (!guild || !channel || channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
-    log.warn({ channelId }, 'Tool fetch failed: channel not found or not a text channel');
+  const channel = await resolveReadableChannel(client, guildId, channelId);
+  if (!channel) {
+    log.warn({ channelId }, 'Tool fetch failed: channel not found, not text-based, or not readable');
     return `Error: channel ${channelId} not found or not readable.`;
   }
-  if (!channel.permissionsFor(guild.members.me!).has(['ViewChannel', 'ReadMessageHistory'])) {
-    log.warn({ channelId, channelName: channel.name }, 'Tool fetch failed: missing permissions');
-    return `Error: no permission to read #${channel.name}.`;
-  }
-  const messages = await channel.messages.fetch({ limit: Math.min(Math.max(1, limit), TOOL_MESSAGE_LIMIT) });
+  const full = (await client.channels.fetch(channelId).catch(() => null));
+  if (!full?.isTextBased()) return 'Error: channel became unreadable.';
+  const messages = await full.messages.fetch({ limit: Math.min(Math.max(1, limit), TOOL_MESSAGE_LIMIT) });
   const lines = [...messages.values()].reverse().filter((m) => m.content.trim().length > 0).map(formatMessageLine);
   if (lines.length === 0) return `#${channel.name}: (no recent text messages)`;
   return `Recent messages from #${channel.name}:\n${lines.join('\n')}`;
