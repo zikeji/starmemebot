@@ -43,10 +43,12 @@ export class MemeReactions {
 
     for (const meme of memes) {
       if (!meme.shouldFire(message, client, Math.random)) continue;
-      log.debug(
-        { meme: meme.name, channelId: message.channelId, author: message.author.username, content: message.content },
-        'Meme triggered',
-      );
+      if (!meme.isFallback) {
+        log.debug(
+          { meme: meme.name, channelId: message.channelId, author: message.author.username, content: message.content },
+          'Meme triggered',
+        );
+      }
       try {
         await meme.run(message, client);
       } catch (err) {

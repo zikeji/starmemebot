@@ -8,6 +8,7 @@ const roller = new ReactionRoller();
 
 export const sixSeven: Meme = {
   name: 'six-seven',
+  isFallback: true,
   shouldFire: () => true,
   run: async (message: Message) => {
     const reaction = roller.recordAndRoll(message.channelId);
