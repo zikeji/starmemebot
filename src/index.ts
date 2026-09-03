@@ -1,8 +1,9 @@
 import { Client } from 'discordx';
-import { DiscordAPIError, IntentsBitField } from 'discord.js';
+import { DiscordAPIError, Events, IntentsBitField } from 'discord.js';
 import { loadConfig } from './config.js';
 import { root as log } from './logger.js';
 import './handlers/reactions.js';
+import './handlers/summarize.js';
 
 const config = loadConfig();
 
@@ -18,6 +19,15 @@ const client = new Client({
 client.login(config.token).catch((err) => {
   log.fatal({ err }, 'Login failed');
   process.exit(1);
+});
+
+client.once(Events.ClientReady, async () => {
+  try {
+    await client.initApplicationCommands();
+    log.info('Application commands initialized');
+  } catch (err) {
+    log.error({ err }, 'Failed to initialize application commands');
+  }
 });
 
 function shutdown() {
