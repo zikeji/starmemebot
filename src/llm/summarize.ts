@@ -8,7 +8,9 @@ import { executeToolCall, TOOL_DEFINITIONS, type ToolContext } from './tools.js'
 const log = createLogger('llm:summarize');
 
 const SUMMARY_TIMEOUT_MS = 120_000;
-const SUMMARY_MAX_TOKENS = 1500;
+// Reasoning models burn output tokens on hidden reasoning before content,
+// so this needs generous headroom over the visible summary length.
+const SUMMARY_MAX_TOKENS = 3000;
 
 export async function summarizeChannel(
   channelName: string,
@@ -55,7 +57,19 @@ export async function summarizeChannel(
     const toolCalls = assistant.tool_calls;
     if (!toolCalls?.length || round === MAX_TOOL_ROUNDS) {
       const text = assistant.content?.trim();
-      if (!text) throw new Error('Empty response from model');
+      if (!text) {
+        const raw = data.choices[0];
+        log.error(
+          {
+            finishReason: raw.finish_reason,
+            hasToolCalls: Boolean(toolCalls?.length),
+            contentLength: assistant.content?.length ?? 0,
+            round: round + 1,
+          },
+          'Summarizer returned empty content',
+        );
+        throw new Error('Empty response from model');
+      }
       if (round > 0) log.info({ rounds: round + 1 }, 'Summary produced after tool use');
       return text;
     }
