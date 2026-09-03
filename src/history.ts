@@ -4,7 +4,14 @@ const HISTORY_LIMIT = 20;
 
 export function formatMessageLine(m: Message): string {
   const displayName = m.member?.displayName ?? m.author.username;
-  return `${displayName} (@${m.author.username}, id: ${m.author.id}, mention: <@${m.author.id}>): ${m.content}`;
+  let line = `${displayName} (@${m.author.username}, id: ${m.author.id}, mention: <@${m.author.id}>): ${m.content}`;
+  if (m.attachments.size > 0) {
+    const attachments = [...m.attachments.values()]
+      .map((a) => `[attachment: ${a.name} (${a.contentType ?? 'unknown'}, ${a.size} bytes)]`)
+      .join(' ');
+    line += ` ${attachments}`;
+  }
+  return line;
 }
 
 export async function getHistoryContext(channel: TextBasedChannel, tokenLimit = 1000): Promise<string> {

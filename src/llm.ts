@@ -35,6 +35,7 @@ const TOOLS_PROMPT = [
 const MENTION_GUIDE = [
   'To mention someone in your reply, use their Discord mention tag (<@USER_ID>), which is shown for each message in the context. Never mention someone unless they are part of the conversation you are replying to.',
   'To reference a channel, use <#CHANNEL_ID>.',
+  'Discord message links look like discord.com/channels/{guildId}/{channelId}/{messageId}. If one appears in the conversation, use read_messages with around: {messageId} to see the linked message in context.',
 ].join('\n');
 
 const TOOL_DEFINITIONS = [
@@ -49,6 +50,25 @@ const TOOL_DEFINITIONS = [
         properties: {
           channel_id: { type: 'string', description: 'ID of the channel to read' },
           limit: { type: 'integer', description: `How many messages (1-${TOOL_MESSAGE_LIMIT}), default 10` },
+        },
+        required: ['channel_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_messages',
+      description:
+        'Read message history from a specific channel or thread, including attachment metadata. Supports count 1-100 and an optional cursor (before/after/around a message ID) for precise reads, e.g. around a linked message. Discord message links look like discord.com/channels/{guildId}/{channelId}/{messageId} — the middle ID is the channel and the last is the message.',
+      parameters: {
+        type: 'object',
+        properties: {
+          channel_id: { type: 'string', description: 'ID of the channel or thread to read' },
+          count: { type: 'integer', description: 'How many messages (1-100), default 20' },
+          before: { type: 'string', description: 'Message ID: fetch messages before this one' },
+          after: { type: 'string', description: 'Message ID: fetch messages after this one' },
+          around: { type: 'string', description: 'Message ID: fetch messages around this one' },
         },
         required: ['channel_id'],
       },
@@ -160,6 +180,36 @@ async function resolveReadableChannel(
     return null;
   }
   return { id: channel.id, name: channel.name };
+}
+
+const MAX_READ_COUNT = 100;
+
+async function readMessages(
+  client: Client,
+  guildId: string,
+  channelId: string,
+  count: number,
+  cursor: { before?: string; after?: string; around?: string },
+  viewerId: string,
+): Promise<string> {
+  const channel = await resolveReadableChannel(client, guildId, channelId, viewerId);
+  if (!channel) {
+    log.warn({ channelId, viewerId }, 'Tool fetch denied: channel not found or not readable by both bot and viewer');
+    return 'Error: channel not found or not readable.';
+  }
+  const full = await client.channels.fetch(channelId).catch(() => null);
+  if (!full?.isTextBased()) return 'Error: channel became unreadable.';
+  const limit = Math.min(Math.max(1, count), MAX_READ_COUNT);
+  const messages = await full.messages
+    .fetch({ limit, before: cursor.before, after: cursor.after, around: cursor.around })
+    .catch((err) => {
+      log.error({ err, channelId, cursor }, 'read_messages fetch failed');
+      return null;
+    });
+  if (!messages) return 'Error: failed to fetch messages (invalid message ID cursor?).';
+  const lines = [...messages.values()].reverse().filter((m) => m.content.trim().length > 0 || m.attachments.size > 0).map(formatMessageLine);
+  if (lines.length === 0) return `#${channel.name}: (no messages in range)`;
+  return `Messages from #${channel.name}:\n${lines.join('\n')}`;
 }
 
 async function fetchChannelMessages(
@@ -383,6 +433,26 @@ export async function generateSpaceReply(chatContext: string, options: Completio
           triggerMessage!.guild!.id,
           channelId,
           limit,
+          triggerMessage!.author.id,
+        ).catch((err) => {
+          log.error({ err, channelId }, 'Tool execution failed');
+          return 'Error: failed to fetch messages.';
+        });
+      } else if (call.function.name === 'read_messages') {
+        const channelId = String(args.channel_id ?? '');
+        const count = Number(args.count ?? 20);
+        const cursor = {
+          before: args.before ? String(args.before) : undefined,
+          after: args.after ? String(args.after) : undefined,
+          around: args.around ? String(args.around) : undefined,
+        };
+        log.info({ channelId, count, cursor, triggerChannel: triggerMessage?.channelId }, 'Executing read_messages');
+        result = await readMessages(
+          client!,
+          triggerMessage!.guild!.id,
+          channelId,
+          count,
+          cursor,
           triggerMessage!.author.id,
         ).catch((err) => {
           log.error({ err, channelId }, 'Tool execution failed');
