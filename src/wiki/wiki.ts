@@ -36,12 +36,19 @@ function buildSections(page: { path: string; title: string; content: string; url
   const out: WikiSection[] = [];
   const lines = page.content.split('\n');
   const headingRe = /^(#{2,6})\s+(.+?)\s*#*$/;
+  const slugCounts = new Map<string, number>();
+  const uniqueSlug = (heading: string): string => {
+    const base = slugify(heading);
+    const n = slugCounts.get(base) ?? 0;
+    slugCounts.set(base, n + 1);
+    return n === 0 ? base : `${base}-${n}`;
+  };
   let current: WikiSection = { path: page.path, title: page.title, content: '', url: page.url };
   for (const line of lines) {
     const match = line.match(headingRe);
     if (match) {
       out.push(current);
-      const slug = slugify(match[2]);
+      const slug = uniqueSlug(match[2]);
       current = {
         path: `${page.path}#${slug}`,
         title: `${page.title} › ${match[2]}`,
@@ -65,6 +72,10 @@ export async function initWiki(): Promise<void> {
     const docs: WikiSection[] = [];
     for (const page of pages) {
       for (const section of buildSections(page)) {
+        if (sections.has(section.path)) {
+          log.warn({ path: section.path }, 'Duplicate wiki section id; skipping');
+          continue;
+        }
         sections.set(section.path, section);
         docs.push(section);
       }
