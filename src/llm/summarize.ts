@@ -30,27 +30,27 @@ export async function summarizeChannel(
   if (!readMessagesDef) throw new Error('read_messages tool definition missing');
   const tools = [readMessagesDef];
   const toolCtx: ToolContext = { client, guildId: viewer.guildId, viewerId: viewer.userId };
-  // Reasoning-heavy models can exhaust the budget before writing visible content
-  // (finish_reason "length", empty content); retry once with a doubled budget.
+  // Reasoning-heavy models can exhaust the output budget before writing visible content
+  // (finish_reason "length", empty content); steer reasoning to low and retry with a
+  // doubled budget if it still runs out.
   let maxTokens = SUMMARY_MAX_TOKENS;
+  const completeOpts = () => ({
+    timeoutMs: SUMMARY_TIMEOUT_MS,
+    maxTokens,
+    reasoning: { effort: 'low', exclude: true },
+  });
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     let data;
     try {
-      data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, {
-        timeoutMs: SUMMARY_TIMEOUT_MS,
-        maxTokens,
-      });
+      data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, completeOpts());
     } catch (err) {
       const status = (err as { status?: number }).status;
       if (images.length > 0 && typeof status === 'number' && status < 500) {
         log.warn({ err }, 'Model rejected image input; retrying summary without attachments');
         images.length = 0;
         messages[1] = { role: 'user', content: buildUserContent(userText, []) };
-        data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, {
-          timeoutMs: SUMMARY_TIMEOUT_MS,
-          maxTokens,
-        });
+        data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, completeOpts());
       } else {
         throw err;
       }

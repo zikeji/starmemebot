@@ -17,7 +17,7 @@ import { createLogger } from '../logger.js';
 
 const log = createLogger('summarize');
 
-const DEFAULT_COUNT = 50;
+const DEFAULT_COUNT = 20;
 const MAX_COUNT = 200;
 const DESCRIPTION_LIMIT = 4096;
 const FIELD_LIMIT = 1024;

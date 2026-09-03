@@ -31,7 +31,12 @@ export async function complete(
   model: string,
   messages: ChatMessage[],
   tools: readonly unknown[] | undefined,
-  opts: { timeoutMs?: number; maxTokens?: number } = {},
+  opts: {
+    timeoutMs?: number;
+    maxTokens?: number;
+    /** OpenRouter-style unified reasoning control; other endpoints may ignore it. */
+    reasoning?: { effort: string; exclude?: boolean };
+  } = {},
 ): Promise<ChatCompletionResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? LLM_TIMEOUT_MS);
@@ -49,6 +54,7 @@ export async function complete(
         tools,
         tool_choice: 'auto',
         max_tokens: opts.maxTokens ?? MAX_OUTPUT_TOKENS,
+        reasoning: opts.reasoning,
       }),
       signal: controller.signal,
     });
