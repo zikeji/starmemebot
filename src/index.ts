@@ -3,6 +3,7 @@ import { DiscordAPIError, Events, IntentsBitField } from 'discord.js';
 import { loadConfig } from './config.js';
 import { root as log } from './logger.js';
 import './handlers/reactions.js';
+import './handlers/interactions.js';
 import './handlers/summarize.js';
 
 const config = loadConfig();
