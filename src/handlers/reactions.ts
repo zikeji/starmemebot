@@ -44,6 +44,13 @@ export class MemeReactions {
   async onMessage([message]: [Message], client: Client): Promise<void> {
     if (message.author.bot || !message.guild || !message.channel.isTextBased()) return;
 
+    // Skip channels the bot cannot reply in (e.g. announcements) — running memes
+    // there only burns inference on a reply that would 403 anyway.
+    const me = message.guild.members.me;
+    if (!me || !('permissionsFor' in message.channel) || !message.channel.permissionsFor(me).has('SendMessages')) {
+      return;
+    }
+
     for (const meme of memes) {
       if (!meme.shouldFire(message, client, Math.random)) continue;
       if (!meme.isFallback) {
