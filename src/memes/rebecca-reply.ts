@@ -1,6 +1,6 @@
 import type { Client, Message } from 'discord.js';
 import { getHistoryContext } from '../history.js';
-import { safeGenerateSpaceReply } from '../llm.js';
+import { safeGenerateSpaceReply } from '../llm/rebecca.js';
 import { root as log } from '../logger.js';
 import type { Meme } from './types.js';
 
