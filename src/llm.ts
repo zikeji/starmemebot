@@ -7,6 +7,7 @@ import { getWikiStatus, searchWiki } from './wiki/wiki.js';
 
 const log = createLogger('llm');
 const LLM_TIMEOUT_MS = 15_000;
+const MAX_OUTPUT_TOKENS = 300;
 const MAX_TOOL_ROUNDS = 3;
 const TOOL_MESSAGE_LIMIT = 15;
 
@@ -507,7 +508,7 @@ async function complete(
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model, messages, tools, tool_choice: 'auto' }),
+      body: JSON.stringify({ model, messages, tools, tool_choice: 'auto', max_tokens: MAX_OUTPUT_TOKENS }),
       signal: controller.signal,
     });
   } finally {
