@@ -93,10 +93,8 @@ export class SummarizeCommand {
     const messages = [...fetched.values()].reverse();
     const chatContext = messages.map(formatMessageLine).join('\n');
 
-    const typing = setInterval(() => {
-      if (channel.isTextBased() && 'sendTyping' in channel) void channel.sendTyping().catch(() => {});
-    }, 8_000);
-
+    // No sendTyping here: the ephemeral defer already shows "thinking", and a
+    // public typing indicator for a private result is noise.
     try {
       const { openaiEndpoint, openaiApiKey, openaiModel, openaiVision } = loadConfig();
       const vision = await modelSupportsVision(openaiEndpoint, openaiApiKey, openaiModel, openaiVision);
@@ -122,8 +120,6 @@ export class SummarizeCommand {
     } catch (err) {
       log.error({ err }, 'Summarize failed');
       await interaction.editReply('The summary drifted into a black hole. Try again shortly. 🐸').catch(() => {});
-    } finally {
-      clearInterval(typing);
     }
   }
 

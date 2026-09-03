@@ -11,6 +11,7 @@ const SUMMARY_TIMEOUT_MS = 120_000;
 // Reasoning models burn output tokens on hidden reasoning before content,
 // so this needs generous headroom over the visible summary length.
 const SUMMARY_MAX_TOKENS = 3000;
+const SUMMARY_MAX_TOKENS_CEILING = 8000;
 
 export async function summarizeChannel(
   channelName: string,
@@ -29,13 +30,16 @@ export async function summarizeChannel(
   if (!readMessagesDef) throw new Error('read_messages tool definition missing');
   const tools = [readMessagesDef];
   const toolCtx: ToolContext = { client, guildId: viewer.guildId, viewerId: viewer.userId };
+  // Reasoning-heavy models can exhaust the budget before writing visible content
+  // (finish_reason "length", empty content); retry once with a doubled budget.
+  let maxTokens = SUMMARY_MAX_TOKENS;
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     let data;
     try {
       data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, {
         timeoutMs: SUMMARY_TIMEOUT_MS,
-        maxTokens: SUMMARY_MAX_TOKENS,
+        maxTokens,
       });
     } catch (err) {
       const status = (err as { status?: number }).status;
@@ -45,29 +49,36 @@ export async function summarizeChannel(
         messages[1] = { role: 'user', content: buildUserContent(userText, []) };
         data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, {
           timeoutMs: SUMMARY_TIMEOUT_MS,
-          maxTokens: SUMMARY_MAX_TOKENS,
+          maxTokens,
         });
       } else {
         throw err;
       }
     }
-    const assistant = data.choices[0]?.message;
+    const choice = data.choices[0];
+    const assistant = choice?.message;
     if (!assistant) throw new Error('Empty response from model');
 
     const toolCalls = assistant.tool_calls;
     if (!toolCalls?.length || round === MAX_TOOL_ROUNDS) {
       const text = assistant.content?.trim();
       if (!text) {
-        const raw = data.choices[0];
         log.error(
           {
-            finishReason: raw.finish_reason,
+            finishReason: choice.finish_reason,
             hasToolCalls: Boolean(toolCalls?.length),
             contentLength: assistant.content?.length ?? 0,
             round: round + 1,
+            maxTokens,
           },
           'Summarizer returned empty content',
         );
+        if (choice.finish_reason === 'length' && maxTokens < SUMMARY_MAX_TOKENS_CEILING) {
+          maxTokens = Math.min(maxTokens * 2, SUMMARY_MAX_TOKENS_CEILING);
+          log.warn({ maxTokens }, 'Retrying summary with a larger output budget');
+          round -= 1;
+          continue;
+        }
         throw new Error('Empty response from model');
       }
       if (round > 0) log.info({ rounds: round + 1 }, 'Summary produced after tool use');
