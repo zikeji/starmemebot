@@ -21,7 +21,8 @@ export const TOOLS_PROMPT = [
 ].join('\n');
 
 export const MENTION_GUIDE = [
-  'To mention someone in your reply, use their Discord mention tag (<@USER_ID>), which is shown for each message in the context. Never mention someone unless they are part of the conversation you are replying to.',
+  'Each message in the context shows a person as: DisplayName (@username, id: ..., mention: <@USER_ID>). DisplayName and the mention tag are the SAME person — never write them together.',
+  'To address someone in your reply, pick ONE form: either their DisplayName as plain text, or the mention tag <@USER_ID> alone (which Discord renders as their name). Never write something like "Nick <@123...>".',
   'To reference a channel, use <#CHANNEL_ID>.',
   'Discord message links look like discord.com/channels/{guildId}/{channelId}/{messageId}. If one appears in the conversation, use read_messages with around: {messageId} to see the linked message in context.',
 ].join('\n');
