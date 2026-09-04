@@ -43,9 +43,9 @@ const BEHAVIORS: Array<{ name: string; prompt: string }> = [
 
 // Escalation: the longer Rebecca goes without a mood episode, the more likely
 // the next trigger becomes (mention/meme triggers count as the unit).
-const MOOD_BASE_CHANCE = 0.01;
-const MOOD_CHANCE_INCREMENT = 0.01;
-const MOOD_MAX_CHANCE = 0.15;
+const MOOD_BASE_CHANCE = 0.02;
+const MOOD_CHANCE_INCREMENT = 0.02;
+const MOOD_MAX_CHANCE = 0.3;
 
 let triggersSinceMood = 0;
 
