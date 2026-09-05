@@ -21,8 +21,10 @@ export const TOOLS_PROMPT = [
 ].join('\n');
 
 export const MENTION_GUIDE = [
+  'Your reply is always sent as a Discord reply, so the person you are responding to is already shown above your message — do NOT start your reply with their name or a mention. Just say the thing.',
+  'Only use a name or mention when addressing or referring to a DIFFERENT person than the one you are replying to, or when the name genuinely helps the sentence flow.',
   'Each message in the context shows a person as: DisplayName (@username, id: ..., mention: <@USER_ID>). DisplayName and the mention tag are the SAME person — never write them together.',
-  'To address someone in your reply, pick ONE form: either their DisplayName as plain text, or the mention tag <@USER_ID> alone (which Discord renders as their name). Never write something like "Nick <@123...>".',
+  'When you do use a name, pick ONE form: either their DisplayName as plain text, or the mention tag <@USER_ID> alone (which Discord renders as their name). Never write something like "Nick <@123...>".',
   'To reference a channel, use <#CHANNEL_ID>.',
   'Discord message links look like discord.com/channels/{guildId}/{channelId}/{messageId}. If one appears in the conversation, use read_messages with around: {messageId} to see the linked message in context.',
 ].join('\n');
