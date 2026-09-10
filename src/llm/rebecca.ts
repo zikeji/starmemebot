@@ -42,6 +42,16 @@ export async function generateSpaceReply(chatContext: string, options: Completio
 
   let systemPrompt = extraSystemPrompt ? `${BASE_SYSTEM_PROMPT}\n\n${extraSystemPrompt}` : BASE_SYSTEM_PROMPT;
   systemPrompt = `${systemPrompt}\n\n${SERVER_CONTEXT}\n\n${MENTION_GUIDE}`;
+  if (triggerMessage?.guild) {
+    const now = new Date();
+    const channelName = 'name' in triggerMessage.channel ? triggerMessage.channel.name : 'unknown';
+    systemPrompt = `${systemPrompt}\n\n${[
+      'Reality check:',
+      `- Current date and time: ${now.toUTCString().replace('GMT', 'UTC')} (${now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })})`,
+      `- Server: ${triggerMessage.guild.name} (${triggerMessage.guild.memberCount} members)`,
+      `- Channel you are replying in: #${channelName}`,
+    ].join('\n')}`;
+  }
   const channels = client && triggerMessage ? await listRelevantChannels(client, triggerMessage) : [];
   if (client && channels.length > 0) {
     const channelList = channels.map((c) => `- ${c.name} (id: ${c.id})`).join('\n');
