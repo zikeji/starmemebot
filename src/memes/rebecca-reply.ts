@@ -79,20 +79,17 @@ export const rebeccaReply: Meme = {
     })();
     try {
       const extraPrompt = rollBehavior();
-      const reply = await safeGenerateSpaceReply(history, { extraSystemPrompt: extraPrompt, client, triggerMessage: message });
-
-      // The model may decline to speak: [silent] stays quiet, [react:emoji] reacts instead.
-      if (reply === '[silent]') {
-        log.debug('Rebecca chose silence');
+      const outcome = await safeGenerateSpaceReply(history, {
+        extraSystemPrompt: extraPrompt,
+        client,
+        triggerMessage: message,
+      });
+      if (outcome.kind === 'silent') return;
+      if (outcome.kind === 'react') {
+        // The reaction already happened inside the tool call.
         return;
       }
-      const reactMatch = reply.match(/^\[react:\s*(.+?)\s*\]$/);
-      if (reactMatch) {
-        await message.react(reactMatch[1]).catch((err) => log.warn({ err, emoji: reactMatch[1] }, 'React reply failed'));
-        return;
-      }
-
-      const sent = await message.reply(reply);
+      const sent = await message.reply(outcome.text);
       // Discord generates link previews even for named markdown links; suppress them.
       await sent.suppressEmbeds().catch((err) => log.warn({ err }, 'Failed to suppress embeds'));
     } finally {

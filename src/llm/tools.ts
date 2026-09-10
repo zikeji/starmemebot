@@ -1,5 +1,4 @@
-import type { Channel, Client, Message, TextChannel } from 'discord.js';
-import { ChannelType } from 'discord.js';
+import type { Channel, Client, Message, TextChannel } from 'discord.js';import { ChannelType } from 'discord.js';
 import { loadConfig } from '../config.js';
 import { formatMessageLine } from '../history.js';
 import { createLogger } from '../logger.js';
@@ -24,6 +23,29 @@ export interface MessageCursor {
 }
 
 export const TOOL_DEFINITIONS = [
+  {
+    type: 'function',
+    function: {
+      name: 'react_to_message',
+      description:
+        'React to the message you are replying to with a single emoji instead of writing a reply. Use when a reaction says it better than a sentence.',
+      parameters: {
+        type: 'object',
+        properties: {
+          emoji: { type: 'string', description: 'A unicode emoji (e.g. 👍, 🐸) or a custom emoji as <a:name:id>' },
+        },
+        required: ['emoji'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'stay_silent',
+      description: 'Do not respond at all. Use when silence is genuinely better than any reply.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
   {
     type: 'function',
     function: {
@@ -116,9 +138,35 @@ export interface ToolContext {
   guildId: string;
   viewerId: string;
   triggerChannelId?: string;
+  /** Message to react to when the model calls react_to_message. */
+  reactTarget?: Message;
 }
 
+/** Marker results that end the loop with a non-reply outcome. */
+export const TOOL_SILENT = '__stay_silent__';
+export const TOOL_REACTED = '__reacted__';
+
+const UNICODE_EMOJI_RE = /\p{Extended_Pictographic}/u;
+const CUSTOM_EMOJI_RE = /^<a?:.+:\d+>$/;
+
 export async function executeToolCall(ctx: ToolContext, name: string, args: Record<string, unknown>): Promise<string> {
+  if (name === 'react_to_message') {
+    const emoji = String(args.emoji ?? '').trim();
+    if (!ctx.reactTarget) return 'Error: no message to react to.';
+    if (!UNICODE_EMOJI_RE.test(emoji) && !CUSTOM_EMOJI_RE.test(emoji)) {
+      return `Error: "${emoji}" is not a valid emoji.`;
+    }
+    return ctx.reactTarget
+      .react(emoji)
+      .then(() => TOOL_REACTED)
+      .catch((err) => {
+        log.error({ err, emoji }, 'Failed to react');
+        return 'Error: failed to react (missing permission or invalid emoji for this channel).';
+      });
+  }
+  if (name === 'stay_silent') {
+    return TOOL_SILENT;
+  }
   if (name === 'fetch_channel_messages') {
     const channelId = String(args.channel_id ?? '');
     const limit = Number(args.limit ?? 10);

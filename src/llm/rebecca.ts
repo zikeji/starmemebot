@@ -22,6 +22,8 @@ import {
   executeToolCall,
   listRelevantChannels,
   TOOL_DEFINITIONS,
+  TOOL_REACTED,
+  TOOL_SILENT,
   type ToolContext,
 } from './tools.js';
 import { collectImageAttachments, modelSupportsVision } from './vision.js';
@@ -34,7 +36,15 @@ export interface CompletionOptions {
   triggerMessage?: Message;
 }
 
-export async function generateSpaceReply(chatContext: string, options: CompletionOptions = {}): Promise<string> {
+export type RebeccaOutcome =
+  | { kind: 'reply'; text: string }
+  | { kind: 'react'; emoji: string }
+  | { kind: 'silent' };
+
+export async function generateSpaceReply(
+  chatContext: string,
+  options: CompletionOptions = {},
+): Promise<RebeccaOutcome> {
   const { extraSystemPrompt, client, triggerMessage } = options;
   const { openaiEndpoint, openaiApiKey, openaiModel, openaiVision } = loadConfig();
   const vision = await modelSupportsVision(openaiEndpoint, openaiApiKey, openaiModel, openaiVision);
@@ -58,7 +68,10 @@ export async function generateSpaceReply(chatContext: string, options: Completio
     systemPrompt = `${systemPrompt}\n\n${TOOLS_PROMPT}\n\nAvailable channels:\n${channelList}`;
     log.debug({ count: channels.length, channels: channels.map((c) => c.name) }, 'Tool access offered to LLM');
   }
-  const tools = client && channels.length > 0 ? TOOL_DEFINITIONS : undefined;
+  // react/silent are always available; the channel tools only when there is a list to advertise.
+  const tools = client && channels.length > 0 ? TOOL_DEFINITIONS : TOOL_DEFINITIONS.filter((t) =>
+    ['react_to_message', 'stay_silent'].includes(t.function.name),
+  );
 
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -127,7 +140,7 @@ export async function generateSpaceReply(chatContext: string, options: Completio
         throw new Error('Empty response from model');
       }
       if (round > 0) log.info({ rounds: round + 1 }, 'LLM reply produced after tool use');
-      return text;
+      return { kind: 'reply', text };
     }
 
     log.info(
@@ -143,6 +156,7 @@ export async function generateSpaceReply(chatContext: string, options: Completio
       guildId: triggerMessage!.guild!.id,
       viewerId: triggerMessage!.author.id,
       triggerChannelId: triggerMessage?.channelId,
+      reactTarget: triggerMessage,
     };
     for (const call of toolCalls) {
       let args: Record<string, unknown>;
@@ -154,6 +168,13 @@ export async function generateSpaceReply(chatContext: string, options: Completio
         continue;
       }
       const result = await executeToolCall(toolCtx, call.function.name, args);
+      if (result === TOOL_SILENT) {
+        log.info('Rebecca chose silence');
+        return { kind: 'silent' };
+      }
+      if (result === TOOL_REACTED) {
+        return { kind: 'react', emoji: String(args.emoji ?? '').trim() };
+      }
       log.info({ tool: call.function.name, resultPreview: result.slice(0, 200) }, 'Tool result returned to LLM');
       messages.push({ role: 'tool', tool_call_id: call.id, content: result });
     }
@@ -161,11 +182,14 @@ export async function generateSpaceReply(chatContext: string, options: Completio
   throw new Error('Unreachable');
 }
 
-export async function safeGenerateSpaceReply(chatContext: string, options: CompletionOptions = {}): Promise<string> {
+export async function safeGenerateSpaceReply(
+  chatContext: string,
+  options: CompletionOptions = {},
+): Promise<RebeccaOutcome> {
   try {
     return await generateSpaceReply(chatContext, options);
   } catch (err) {
     log.error({ err }, 'LLM error');
-    return 'UwU! Rebecca got tangled in her handcuffs again~ 🐸🌠 (・ω・)';
+    return { kind: 'reply', text: 'UwU! Rebecca got tangled in her handcuffs again~ 🐸🌠 (・ω・)' };
   }
 }
