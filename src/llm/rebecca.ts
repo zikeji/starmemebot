@@ -4,10 +4,14 @@ import { createLogger } from '../logger.js';
 import {
   buildUserContent,
   complete,
+  MAX_OUTPUT_TOKENS,
   MAX_TOOL_ROUNDS,
   type ChatCompletionResponse,
   type ChatMessage,
 } from './completion.js';
+
+// Reasoning models can eat 400 tokens on hidden thinking before writing a word.
+const REBECCA_MAX_TOKENS_CEILING = 1600;
 import {
   BASE_SYSTEM_PROMPT,
   MENTION_GUIDE,
@@ -57,10 +61,18 @@ export async function generateSpaceReply(chatContext: string, options: Completio
     },
   ];
 
+  // Reasoning models can burn the output budget on hidden reasoning before content;
+  // steer to low effort and retry with a doubled budget when finish_reason is "length".
+  let maxTokens = MAX_OUTPUT_TOKENS;
+  const completeOpts = () => ({
+    maxTokens,
+    reasoning: { effort: 'low', exclude: true },
+  });
+
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     let data: ChatCompletionResponse;
     try {
-      data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools);
+      data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, completeOpts());
     } catch (err) {
       const status = (err as { status?: number }).status;
       if (images.length > 0 && typeof status === 'number' && status < 500) {
@@ -73,18 +85,37 @@ export async function generateSpaceReply(chatContext: string, options: Completio
             [],
           ),
         };
-        data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools);
+        data = await complete(openaiEndpoint, openaiApiKey, openaiModel, messages, tools, completeOpts());
       } else {
         throw err;
       }
     }
-    const assistant = data.choices[0]?.message;
+    const choice = data.choices[0];
+    const assistant = choice?.message;
     if (!assistant) throw new Error('Empty response from model');
 
     const toolCalls = assistant.tool_calls;
     if (!toolCalls?.length || round === MAX_TOOL_ROUNDS) {
       const text = assistant.content?.trim();
-      if (!text) throw new Error('Empty response from model');
+      if (!text) {
+        log.error(
+          {
+            finishReason: choice.finish_reason,
+            hasToolCalls: Boolean(toolCalls?.length),
+            contentLength: assistant.content?.length ?? 0,
+            round: round + 1,
+            maxTokens,
+          },
+          'Rebecca got empty content',
+        );
+        if (choice.finish_reason === 'length' && maxTokens < REBECCA_MAX_TOKENS_CEILING) {
+          maxTokens = Math.min(maxTokens * 2, REBECCA_MAX_TOKENS_CEILING);
+          log.warn({ maxTokens }, 'Retrying Rebecca reply with a larger output budget');
+          round -= 1;
+          continue;
+        }
+        throw new Error('Empty response from model');
+      }
       if (round > 0) log.info({ rounds: round + 1 }, 'LLM reply produced after tool use');
       return text;
     }

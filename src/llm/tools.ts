@@ -94,10 +94,6 @@ function isDenylistedId(channelId: string): boolean {
   return loadConfig().channelDenylist.includes(channelId);
 }
 
-function logDenied(channelId: string, via: string) {
-  log.info({ channelId, via }, 'Channel is denylisted (or its parent is); excluding from tool access');
-}
-
 /** Walks up thread → channel → category. Cache first, REST fallback — a cache miss must never grant access. */
 export async function isDenylistedWithAncestors(client: Client, guildId: string, channelId: string): Promise<boolean> {
   if (loadConfig().channelDenylist.length === 0) return false;
@@ -106,7 +102,6 @@ export async function isDenylistedWithAncestors(client: Client, guildId: string,
   let currentId: string | null = channelId;
   for (let depth = 0; currentId && depth < 5; depth++) {
     if (isDenylistedId(currentId)) {
-      logDenied(channelId, depth === 0 ? 'self' : `ancestor ${currentId}`);
       return true;
     }
     const resolved: Channel | null | undefined =
