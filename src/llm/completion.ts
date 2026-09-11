@@ -1,6 +1,6 @@
 export const LLM_TIMEOUT_MS = 15_000;
 export const MAX_OUTPUT_TOKENS = 400;
-export const MAX_TOOL_ROUNDS = 3;
+export const MAX_TOOL_ROUNDS = 8;
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';

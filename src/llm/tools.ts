@@ -1,7 +1,11 @@
-import type { Channel, Client, Message, TextChannel } from 'discord.js';import { ChannelType } from 'discord.js';
+import type { Channel, Client, Message, TextChannel } from 'discord.js';
+import { ChannelType } from 'discord.js';
 import { loadConfig } from '../config.js';
 import { formatMessageLine } from '../history.js';
 import { createLogger } from '../logger.js';
+import { embed } from '../memories/embeddings.js';
+import { guardMemoryUpdate, guardNewMemory } from '../memories/guard.js';
+import { appendMemory, getMemoryTextById, searchByVector, updateMemoryText } from '../memories/store.js';
 import { getWikiStatus, searchWiki } from '../wiki/wiki.js';
 
 const log = createLogger('llm:tools');
@@ -110,6 +114,57 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'search_memories',
+      description:
+        'Search your long-term memories for this server (semantic match). Use when a memory, inside joke or past event is referenced and you need the details. Returns ids you can pass to update_memory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to look for, in natural language' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'store_memory',
+      description:
+        'Store a one-sentence memory for later recall. Only when a user asks you to remember something, or clearly wants it kept. You MUST call search_memories first this turn to check it is not already stored.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'The memory as one self-contained sentence' },
+          relevant_user_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Discord user ids the memory is about or that were part of the moment',
+          },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_memory',
+      description:
+        'Refine an existing memory (same fact, reworded, extended or corrected) by id. You MUST call search_memories first this turn to find the id. The new text must still capture the original memory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Memory id from a previous search_memories result' },
+          text: { type: 'string', description: 'The refined memory text' },
+        },
+        required: ['id', 'text'],
+      },
+    },
+  },
 ] as const;
 
 function isDenylistedId(channelId: string): boolean {
@@ -198,6 +253,99 @@ export async function executeToolCall(ctx: ToolContext, name: string, args: Reco
       log.error({ err, query }, 'Tool execution failed');
       return 'Error: failed to search members.';
     });
+  }
+  if (name === 'search_memories') {
+    const query = String(args.query ?? '');
+    if (!ctx.triggerChannelId || (await isDenylistedWithAncestors(ctx.client, ctx.guildId, ctx.triggerChannelId))) {
+      return 'Error: memory search is not available in this channel.';
+    }
+    log.info({ query }, 'Executing search_memories');
+    try {
+      const [vector] = await embed([query]);
+      const hits = await searchByVector(ctx.guildId, vector);
+      if (hits.length === 0) return 'No matching memories.';
+      return `Memories (best first, with similarity):\n${hits
+        .map(
+          (h) =>
+            `- [${h.record.id}, ${new Date(h.record.createdAt).toISOString().slice(0, 10)}, match ${h.score.toFixed(2)}] ${h.record.text}`,
+        )
+        .join('\n')}`;
+    } catch (err) {
+      log.error({ err }, 'search_memories failed');
+      return 'Error: memory search failed.';
+    }
+  }
+  if (name === 'store_memory') {
+    const text = String(args.text ?? '').trim();
+    const relevantUserIds = Array.isArray(args.relevant_user_ids) ? args.relevant_user_ids.map(String) : [];
+    if (text.length === 0) return 'Error: empty memory text.';
+    if (!ctx.triggerChannelId || (await isDenylistedWithAncestors(ctx.client, ctx.guildId, ctx.triggerChannelId))) {
+      return 'Error: memories cannot be stored from this channel.';
+    }
+    const verdict = await guardNewMemory(text);
+    if (!verdict.allow) {
+      log.warn(
+        { text, reason: verdict.reason, guildId: ctx.guildId, channelId: ctx.triggerChannelId, triggeredBy: ctx.viewerId },
+        'Memory store denied by guard',
+      );
+      return `Refused: this memory was blocked by the safety filter (${verdict.reason}). Do not retry it; reply normally.`;
+    }
+    try {
+      const [embedding] = await embed([text]);
+      const record = await appendMemory({
+        guildId: ctx.guildId,
+        text,
+        embedding,
+        triggeredBy: ctx.viewerId,
+        relevantUserIds,
+        channelId: ctx.triggerChannelId,
+      });
+      log.info(
+        { id: record.id, text, guildId: ctx.guildId, channelId: ctx.triggerChannelId, triggeredBy: ctx.viewerId },
+        'Memory stored',
+      );
+      return `Stored as ${record.id}.`;
+    } catch (err) {
+      log.error({ err }, 'store_memory failed');
+      return 'Error: failed to store the memory (embedding API issue?).';
+    }
+  }
+  if (name === 'update_memory') {
+    const id = String(args.id ?? '').trim();
+    const text = String(args.text ?? '').trim();
+    if (text.length === 0) return 'Error: empty memory text.';
+    if (!ctx.triggerChannelId || (await isDenylistedWithAncestors(ctx.client, ctx.guildId, ctx.triggerChannelId))) {
+      return 'Error: memories cannot be edited from this channel.';
+    }
+    let existing: string | null;
+    try {
+      existing = getMemoryTextById(ctx.guildId, id);
+    } catch (err) {
+      log.error({ err }, 'Memory store unavailable for update');
+      return 'Error: memory store is unavailable right now.';
+    }
+    if (!existing) return 'Error: no memory with that id (call search_memories for current ids).';
+    const verdict = await guardMemoryUpdate(existing, text);
+    if (!verdict.allow || verdict.preserved === false) {
+      log.warn(
+        { id, oldText: existing, newText: text, reason: verdict.reason, guildId: ctx.guildId, channelId: ctx.triggerChannelId, triggeredBy: ctx.viewerId },
+        'Memory update denied by guard',
+      );
+      return `Refused: the edit was blocked (${verdict.reason}). The new text must stay faithful to the original memory; reply normally instead.`;
+    }
+    try {
+      const [embedding] = await embed([text]);
+      const record = await updateMemoryText(ctx.guildId, id, text, embedding, ctx.viewerId);
+      if (!record) return 'Error: memory vanished before the edit landed.';
+      log.info(
+        { id, text, guildId: ctx.guildId, channelId: ctx.triggerChannelId, triggeredBy: ctx.viewerId },
+        'Memory updated',
+      );
+      return `Updated ${id}.`;
+    } catch (err) {
+      log.error({ err }, 'update_memory failed');
+      return 'Error: failed to update the memory (embedding API issue?).';
+    }
   }
   if (name === 'search_wiki') {
     const query = String(args.query ?? '');

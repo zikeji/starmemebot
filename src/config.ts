@@ -16,6 +16,10 @@ export interface BotConfig {
    * /models listing doesn't expose capability info.
    */
   openaiVision: boolean;
+  /** OpenAI-compatible embedding model for memory search. Pick-once: baked into stored vectors. */
+  embeddingModel: string;
+  /** JSONL file backing the memory store. */
+  memoryFile: string;
 }
 
 export function loadConfig(): BotConfig {
@@ -45,5 +49,7 @@ export function loadConfig(): BotConfig {
     wikiRepo: process.env.WIKI_REPO || 'StarPilot-Docs/docs',
     wikiCacheDir: process.env.WIKI_CACHE_DIR || 'data/wiki',
     openaiVision: process.env.OPENAI_VISION === 'true',
+    embeddingModel: process.env.EMBEDDING_MODEL || 'baai/bge-base-en-v1.5',
+    memoryFile: process.env.MEMORY_FILE || 'data/memories.jsonl',
   };
 }

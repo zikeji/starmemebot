@@ -14,18 +14,21 @@ import {
 const REBECCA_MAX_TOKENS_CEILING = 1600;
 import {
   BASE_SYSTEM_PROMPT,
+  MEMORY_GUIDE,
   MENTION_GUIDE,
   SERVER_CONTEXT,
   TOOLS_PROMPT,
 } from './prompts.js';
 import {
   executeToolCall,
+  isDenylistedWithAncestors,
   listRelevantChannels,
   TOOL_DEFINITIONS,
   TOOL_SILENT,
   type ToolContext,
 } from './tools.js';
 import { collectImageAttachments, modelSupportsVision } from './vision.js';
+import { passiveRecall } from '../memories/store.js';
 
 const log = createLogger('llm:rebecca');
 
@@ -50,6 +53,11 @@ export async function generateSpaceReply(
 
   let systemPrompt = extraSystemPrompt ? `${BASE_SYSTEM_PROMPT}\n\n${extraSystemPrompt}` : BASE_SYSTEM_PROMPT;
   systemPrompt = `${systemPrompt}\n\n${SERVER_CONTEXT}\n\n${MENTION_GUIDE}`;
+  // Offered only when the memory tools are (client + guild) so the prompt never
+  // advertises capabilities missing from the tool schema (e.g. DMs).
+  if (client && triggerMessage?.guild) {
+    systemPrompt = `${systemPrompt}\n\n${MEMORY_GUIDE}`;
+  }
   if (triggerMessage?.guild) {
     const now = new Date();
     const channelName = 'name' in triggerMessage.channel ? triggerMessage.channel.name : 'unknown';
@@ -66,10 +74,36 @@ export async function generateSpaceReply(
     systemPrompt = `${systemPrompt}\n\n${TOOLS_PROMPT}\n\nAvailable channels:\n${channelList}`;
     log.debug({ count: channels.length, channels: channels.map((c) => c.name) }, 'Tool access offered to LLM');
   }
-  // react/silent are always available; the channel tools only when there is a list to advertise.
+  // react/silent are always available; memory tools need a client+guild (their execution
+  // dereferences both); the channel tools only when there is a list to advertise.
+  const alwaysTools = client && triggerMessage?.guild
+    ? ['react_to_message', 'stay_silent', 'search_memories', 'store_memory', 'update_memory']
+    : ['react_to_message', 'stay_silent'];
   const tools = client && channels.length > 0 ? TOOL_DEFINITIONS : TOOL_DEFINITIONS.filter((t) =>
-    ['react_to_message', 'stay_silent'].includes(t.function.name),
+    alwaysTools.includes(t.function.name),
   );
+
+  // Passive memory recall: free lexical hits from the trigger + recent history, injected as
+  // background knowledge. Never in denylisted channels; silent when nothing scores.
+  // Memory is an enhancement — any store failure here degrades to "no injection".
+  if (triggerMessage?.guild && client) {
+    try {
+      const denylisted = !triggerMessage.channelId
+        || (await isDenylistedWithAncestors(client, triggerMessage.guild.id, triggerMessage.channelId));
+      if (!denylisted) {
+        const query = `${triggerMessage.content}\n${chatContext.split('\n').slice(-5).join(' ')}`;
+        const hits = passiveRecall(triggerMessage.guild.id, query);
+        if (hits.length > 0) {
+          const lines = hits.map(
+            (h) => `- [${h.record.id}, ${new Date(h.record.createdAt).toISOString().slice(0, 10)}] ${h.record.text}`,
+          );
+          systemPrompt = `${systemPrompt}\n\nMemories that may be relevant (surfaced automatically; may be stale or wrong — use judgment, don't recite them unprompted):\n${lines.join('\n')}`;
+        }
+      }
+    } catch (err) {
+      log.warn({ err }, 'Passive memory recall skipped');
+    }
+  }
 
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -89,6 +123,8 @@ export async function generateSpaceReply(
   // One reaction usually says it; two is theatrical; more is spam.
   const MAX_REACTIONS = 2;
   let reactions = 0;
+  // store/update require a search_memories call earlier in the turn (dedup nudge).
+  let memorySearchedThisTurn = false;
   const completeOpts = () => ({
     maxTokens,
     reasoning: { effort: 'low', exclude: true },
@@ -183,6 +219,17 @@ export async function generateSpaceReply(
         });
         continue;
       }
+      if (
+        (call.function.name === 'store_memory' || call.function.name === 'update_memory') &&
+        !memorySearchedThisTurn
+      ) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: 'Error: call search_memories first this turn to check for duplicates and find current ids.',
+        });
+        continue;
+      }
       const result = await executeToolCall(toolCtx, call.function.name, args);
       if (result === TOOL_SILENT) {
         log.info('Rebecca chose silence');
@@ -191,6 +238,9 @@ export async function generateSpaceReply(
       if (call.function.name === 'react_to_message' && !result.startsWith('Error:')) {
         reactedThisCall = true;
         reactions += 1;
+      }
+      if (call.function.name === 'search_memories' && !result.startsWith('Error:')) {
+        memorySearchedThisTurn = true;
       }
       log.info({ tool: call.function.name, resultPreview: result.slice(0, 200) }, 'Tool result returned to LLM');
       messages.push({ role: 'tool', tool_call_id: call.id, content: result });

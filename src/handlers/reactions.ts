@@ -4,6 +4,7 @@ import { ActivityType, Events, type Message } from 'discord.js';
 import { memes } from '../memes/index.js';
 import { createLogger } from '../logger.js';
 import { initWiki } from '../wiki/wiki.js';
+import { loadMemories } from '../memories/store.js';
 
 const log = createLogger('memes');
 
@@ -38,6 +39,7 @@ export class MemeReactions {
     }
 
     void initWiki();
+    void loadMemories().catch((err) => log.error({ err }, 'Memory store init failed'));
   }
 
   @On({ event: Events.MessageCreate })
