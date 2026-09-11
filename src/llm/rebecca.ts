@@ -22,7 +22,6 @@ import {
   executeToolCall,
   listRelevantChannels,
   TOOL_DEFINITIONS,
-  TOOL_REACTED,
   TOOL_SILENT,
   type ToolContext,
 } from './tools.js';
@@ -38,7 +37,6 @@ export interface CompletionOptions {
 
 export type RebeccaOutcome =
   | { kind: 'reply'; text: string }
-  | { kind: 'react'; emoji: string }
   | { kind: 'silent' };
 
 export async function generateSpaceReply(
@@ -78,7 +76,7 @@ export async function generateSpaceReply(
     {
       role: 'user',
       content: buildUserContent(
-        `Chat context:\n${chatContext}\n\nTask: React to the last person's message with peak cosmic energy!`,
+        `Chat context:\n${chatContext}\n\nTask: Reply to the last person's message with peak cosmic energy (or react/stay silent only when that genuinely fits better)!`,
         images,
       ),
     },
@@ -87,6 +85,10 @@ export async function generateSpaceReply(
   // Reasoning models can burn the output budget on hidden reasoning before content;
   // steer to low effort and retry with a doubled budget when finish_reason is "length".
   let maxTokens = MAX_OUTPUT_TOKENS;
+  let reactedThisCall = false;
+  // One reaction usually says it; two is theatrical; more is spam.
+  const MAX_REACTIONS = 2;
+  let reactions = 0;
   const completeOpts = () => ({
     maxTokens,
     reasoning: { effort: 'low', exclude: true },
@@ -104,7 +106,7 @@ export async function generateSpaceReply(
         messages[1] = {
           role: 'user',
           content: buildUserContent(
-            `Chat context:\n${chatContext}\n\nTask: React to the last person's message with peak cosmic energy!`,
+            `Chat context:\n${chatContext}\n\nTask: Reply to the last person's message with peak cosmic energy (or react/stay silent only when that genuinely fits better)!`,
             [],
           ),
         };
@@ -121,6 +123,11 @@ export async function generateSpaceReply(
     if (!toolCalls?.length || round === MAX_TOOL_ROUNDS) {
       const text = assistant.content?.trim();
       if (!text) {
+        // React-only turn: the reaction already landed; treat missing text as silence.
+        if (reactedThisCall) {
+          log.info('Rebecca reacted and had nothing more to say');
+          return { kind: 'silent' };
+        }
         log.error(
           {
             finishReason: choice.finish_reason,
@@ -167,13 +174,23 @@ export async function generateSpaceReply(
         messages.push({ role: 'tool', tool_call_id: call.id, content: 'Error: invalid JSON arguments.' });
         continue;
       }
+      if (call.function.name === 'react_to_message' && reactions >= MAX_REACTIONS) {
+        log.info({ reactions }, 'Reaction cap reached; refusing further react_to_message calls');
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: 'Error: reaction limit reached. Reply with text or call stay_silent.',
+        });
+        continue;
+      }
       const result = await executeToolCall(toolCtx, call.function.name, args);
       if (result === TOOL_SILENT) {
         log.info('Rebecca chose silence');
         return { kind: 'silent' };
       }
-      if (result === TOOL_REACTED) {
-        return { kind: 'react', emoji: String(args.emoji ?? '').trim() };
+      if (call.function.name === 'react_to_message' && !result.startsWith('Error:')) {
+        reactedThisCall = true;
+        reactions += 1;
       }
       log.info({ tool: call.function.name, resultPreview: result.slice(0, 200) }, 'Tool result returned to LLM');
       messages.push({ role: 'tool', tool_call_id: call.id, content: result });

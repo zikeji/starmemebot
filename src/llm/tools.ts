@@ -28,7 +28,7 @@ export const TOOL_DEFINITIONS = [
     function: {
       name: 'react_to_message',
       description:
-        'React to the message you are replying to with a single emoji instead of writing a reply. Use when a reaction says it better than a sentence.',
+        'Add a single-emoji reaction to the message you are replying to. You can use this on its own (reaction instead of a reply) or together with a reply.',
       parameters: {
         type: 'object',
         properties: {
@@ -142,9 +142,8 @@ export interface ToolContext {
   reactTarget?: Message;
 }
 
-/** Marker results that end the loop with a non-reply outcome. */
+/** Marker result that ends the loop with silence. */
 export const TOOL_SILENT = '__stay_silent__';
-export const TOOL_REACTED = '__reacted__';
 
 const UNICODE_EMOJI_RE = /\p{Extended_Pictographic}/u;
 const CUSTOM_EMOJI_RE = /^<a?:.+:\d+>$/;
@@ -153,12 +152,14 @@ export async function executeToolCall(ctx: ToolContext, name: string, args: Reco
   if (name === 'react_to_message') {
     const emoji = String(args.emoji ?? '').trim();
     if (!ctx.reactTarget) return 'Error: no message to react to.';
-    if (!UNICODE_EMOJI_RE.test(emoji) && !CUSTOM_EMOJI_RE.test(emoji)) {
-      return `Error: "${emoji}" is not a valid emoji.`;
+    // Discord accepts exactly one emoji per reaction; reject multi-emoji strings like "🐸⭐".
+    const pictographicCount = [...emoji].filter((ch) => UNICODE_EMOJI_RE.test(ch)).length;
+    if (!CUSTOM_EMOJI_RE.test(emoji) && pictographicCount !== 1) {
+      return `Error: "${emoji}" is not a single valid emoji.`;
     }
     return ctx.reactTarget
       .react(emoji)
-      .then(() => TOOL_REACTED)
+      .then(() => `Reacted to the message with ${emoji}.`)
       .catch((err) => {
         log.error({ err, emoji }, 'Failed to react');
         return 'Error: failed to react (missing permission or invalid emoji for this channel).';

@@ -85,10 +85,6 @@ export const rebeccaReply: Meme = {
         triggerMessage: message,
       });
       if (outcome.kind === 'silent') return;
-      if (outcome.kind === 'react') {
-        // The reaction already happened inside the tool call.
-        return;
-      }
       const sent = await message.reply(outcome.text);
       // Discord generates link previews even for named markdown links; suppress them.
       await sent.suppressEmbeds().catch((err) => log.warn({ err }, 'Failed to suppress embeds'));
