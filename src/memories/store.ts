@@ -68,6 +68,7 @@ export async function loadMemories(): Promise<void> {
       records = [];
       rebuildIndex();
       loaded = true;
+      log.info({ memoryFile }, 'No memories file yet; starting with an empty store');
       return;
     }
     throw err;
