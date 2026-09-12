@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { Client, Discord, On, Once } from 'discordx';
 import { ActivityType, Events, type Message } from 'discord.js';
+import { isUserDenylisted } from '../config.js';
 import { memes } from '../memes/index.js';
 import { createLogger } from '../logger.js';
 import { initWiki } from '../wiki/wiki.js';
@@ -45,6 +46,8 @@ export class MemeReactions {
   @On({ event: Events.MessageCreate })
   async onMessage([message]: [Message], client: Client): Promise<void> {
     if (message.author.bot || !message.guild || !message.channel.isTextBased()) return;
+    // User denylist: their messages never trigger anything and they get no replies.
+    if (isUserDenylisted(message.author.id)) return;
 
     // Skip channels the bot cannot reply in (e.g. announcements) — running memes
     // there only burns inference on a reply that would 403 anyway.

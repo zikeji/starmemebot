@@ -8,6 +8,8 @@ export interface BotConfig {
   openaiModel: string;
   /** Comma-separated channel IDs the LLM tools may never read (history context is unaffected). */
   channelDenylist: string[];
+  /** Comma-separated user IDs Rebecca ignores entirely: no memes, no replies, and they are erased from all context/tools. */
+  userDenylist: string[];
   /** GitHub repo (owner/name) backing https://wiki.firestar.link — must have a docs/ dir of markdown. */
   wikiRepo: string;
   wikiCacheDir: string;
@@ -40,16 +42,26 @@ export function loadConfig(): BotConfig {
     .map((id) => id.trim())
     .filter(Boolean);
 
+  const userDenylist = (process.env.USER_DENYLIST ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+
   return {
     token,
     openaiEndpoint,
     openaiApiKey,
     openaiModel,
     channelDenylist,
+    userDenylist,
     wikiRepo: process.env.WIKI_REPO || 'StarPilot-Docs/docs',
     wikiCacheDir: process.env.WIKI_CACHE_DIR || 'data/wiki',
     openaiVision: process.env.OPENAI_VISION === 'true',
     embeddingModel: process.env.EMBEDDING_MODEL || 'baai/bge-base-en-v1.5',
     memoryFile: process.env.MEMORY_FILE || 'data/memories.jsonl',
   };
+}
+
+export function isUserDenylisted(userId: string): boolean {
+  return loadConfig().userDenylist.includes(userId);
 }

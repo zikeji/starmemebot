@@ -1,6 +1,6 @@
 import type { Channel, Client, Message, TextChannel } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import { loadConfig } from '../config.js';
+import { isUserDenylisted, loadConfig } from '../config.js';
 import { formatMessageLine } from '../history.js';
 import { createLogger } from '../logger.js';
 import { embed } from '../memories/embeddings.js';
@@ -279,6 +279,9 @@ export async function executeToolCall(ctx: ToolContext, name: string, args: Reco
     const text = String(args.text ?? '').trim();
     const relevantUserIds = Array.isArray(args.relevant_user_ids) ? args.relevant_user_ids.map(String) : [];
     if (text.length === 0) return 'Error: empty memory text.';
+    if (relevantUserIds.some(isUserDenylisted)) {
+      return 'Refused: memories cannot be stored about this user.';
+    }
     if (!ctx.triggerChannelId || (await isDenylistedWithAncestors(ctx.client, ctx.guildId, ctx.triggerChannelId))) {
       return 'Error: memories cannot be stored from this channel.';
     }
@@ -459,7 +462,7 @@ export async function readMessages(
       return null;
     });
   if (!messages) return 'Error: failed to fetch messages (invalid message ID cursor?).';
-  const lines = [...messages.values()].reverse().filter((m) => m.content.trim().length > 0 || m.attachments.size > 0).map(formatMessageLine);
+  const lines = [...messages.values()].reverse().filter((m) => !isUserDenylisted(m.author.id) && (m.content.trim().length > 0 || m.attachments.size > 0)).map(formatMessageLine);
   if (lines.length === 0) return `#${channel.name}: (no messages in range)`;
   return `Messages from #${channel.name}:\n${lines.join('\n')}`;
 }
@@ -479,7 +482,7 @@ export async function fetchChannelMessages(
   const full = (await client.channels.fetch(channelId).catch(() => null));
   if (!full?.isTextBased()) return 'Error: channel became unreadable.';
   const messages = await full.messages.fetch({ limit: Math.min(Math.max(1, limit), TOOL_MESSAGE_LIMIT) });
-  const lines = [...messages.values()].reverse().filter((m) => m.content.trim().length > 0).map(formatMessageLine);
+  const lines = [...messages.values()].reverse().filter((m) => !isUserDenylisted(m.author.id) && m.content.trim().length > 0).map(formatMessageLine);
   if (lines.length === 0) return `#${channel.name}: (no recent text messages)`;
   return `Recent messages from #${channel.name}:\n${lines.join('\n')}`;
 }
@@ -493,9 +496,10 @@ export async function searchMembers(client: Client, guildId: string, query: stri
   const matches = guild.members.cache
     .filter(
       (m) =>
-        m.displayName.toLowerCase().includes(q) ||
-        m.user.username.toLowerCase().includes(q) ||
-        (m.user.globalName?.toLowerCase().includes(q) ?? false),
+        !isUserDenylisted(m.user.id) &&
+        (m.displayName.toLowerCase().includes(q) ||
+          m.user.username.toLowerCase().includes(q) ||
+          (m.user.globalName?.toLowerCase().includes(q) ?? false)),
     )
     .first(MAX_SEARCH_RESULTS);
   if (!matches?.length) return `No members found matching "${query}".`;

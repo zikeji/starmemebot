@@ -1,4 +1,5 @@
 import type { Message, TextBasedChannel } from 'discord.js';
+import { isUserDenylisted } from './config.js';
 
 const HISTORY_LIMIT = 20;
 
@@ -18,7 +19,7 @@ export async function getHistoryContext(channel: TextBasedChannel, tokenLimit = 
   const messages = await channel.messages.fetch({ limit: HISTORY_LIMIT });
   const lines = [...messages.values()]
     .reverse()
-    .filter((m) => m.content.trim().length > 0)
+    .filter((m) => m.content.trim().length > 0 && !isUserDenylisted(m.author.id))
     .map(formatMessageLine);
 
   const maxChars = tokenLimit * 4;

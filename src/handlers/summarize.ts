@@ -12,7 +12,7 @@ import { summarizeChannel } from '../llm/summarize.js';
 import { collectImagesFromMessages, modelSupportsVision } from '../llm/vision.js';
 import { isDenylistedWithAncestors } from '../llm/tools.js';
 import { formatMessageLine } from '../history.js';
-import { loadConfig } from '../config.js';
+import { isUserDenylisted, loadConfig } from '../config.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('summarize');
@@ -67,6 +67,11 @@ export class SummarizeCommand {
   ): Promise<void> {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+    if (isUserDenylisted(interaction.user.id)) {
+      await interaction.deleteReply().catch(() => {});
+      return;
+    }
+
     if (!interaction.guildId) {
       await interaction.editReply('This command only works in a server.');
       return;
@@ -90,7 +95,7 @@ export class SummarizeCommand {
       await interaction.editReply('Could not read this channel\'s history.');
       return;
     }
-    const messages = [...fetched.values()].reverse();
+    const messages = [...fetched.values()].reverse().filter((m) => !isUserDenylisted(m.author.id));
     const chatContext = messages.map(formatMessageLine).join('\n');
 
     // No sendTyping here: the ephemeral defer already shows "thinking", and a
