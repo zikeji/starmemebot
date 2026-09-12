@@ -487,9 +487,21 @@ export async function fetchChannelMessages(
   return `Recent messages from #${channel.name}:\n${lines.join('\n')}`;
 }
 
+function formatMemberLine(m: { displayName: string; nickname?: string | null; user: { id: string; username: string; bot: boolean } }): string {
+  return `${m.displayName} (@${m.user.username}, id: ${m.user.id}, mention: <@${m.user.id}>${m.nickname ? `, nickname: ${m.nickname}` : ''}, bot: ${m.user.bot})`;
+}
+
 export async function searchMembers(client: Client, guildId: string, query: string): Promise<string> {
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return 'Error: guild not found.';
+  if (/^\d+$/.test(query)) {
+    // Raw user ID: Discord's query search can't resolve snowflakes — fetch directly.
+    const member = await guild.members.fetch(query).catch(() => null);
+    if (member && !isUserDenylisted(member.id)) {
+      return `Members matching "${query}":\n${formatMemberLine(member)}`;
+    }
+    return `No members found matching "${query}".`;
+  }
   // Cache may be partial for large guilds; ask Discord for current members.
   await guild.members.fetch({ query, limit: MAX_SEARCH_RESULTS }).catch(() => null);
   const q = query.toLowerCase();
@@ -503,9 +515,6 @@ export async function searchMembers(client: Client, guildId: string, query: stri
     )
     .first(MAX_SEARCH_RESULTS);
   if (!matches?.length) return `No members found matching "${query}".`;
-  const lines = matches.map(
-    (m) =>
-      `${m.displayName} (@${m.user.username}, id: ${m.user.id}, mention: <@${m.user.id}>${m.nickname ? `, nickname: ${m.nickname}` : ''}, bot: ${m.user.bot})`,
-  );
+  const lines = matches.map(formatMemberLine);
   return `Members matching "${query}":\n${lines.join('\n')}`;
 }
