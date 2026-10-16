@@ -14,9 +14,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@keyv/sqlite": "6.0.0-alpha.3",
     "discord.js": "^14.0.0",
     "discordx": "^11.0.0",
     "dotenv": "^17.0.0",
+    "keyv": "6.0.0-alpha.3",
     "minisearch": "^7.2.0",
     "pino": "^10.3.1"
   },
@@ -26,5 +28,8 @@
     "tsx": "^4.0.0",
     "typescript": "^6.0.0",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "better-sqlite3": "^13.0.3"
   }
 }
