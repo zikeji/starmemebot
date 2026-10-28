@@ -1,8 +1,10 @@
 import type { Client, Message } from 'discord.js';
+import { getHistoryContext } from '../history.js';
+import { safeGenerateSpaceReply } from '../llm/rebecca.js';
 import { root as log } from '../logger.js';
-import { androidAutoContextFor, rememberAndroidAutoReply } from './android-auto.js';
-import { replyAsRebecca } from './reply.js';
 import type { Meme } from './types.js';
+
+const TYPING_INTERVAL_MS = 8_000;
 
 const BEHAVIORS: Array<{ name: string; prompt: string }> = [
   {
@@ -67,9 +69,28 @@ export const rebeccaReply: Meme = {
     return content.includes('uwu') || content.includes('owo');
   },
   run: async (message: Message, client: Client) => {
-    const androidAutoContext = await androidAutoContextFor(message);
-    const extraPrompt = [rollBehavior(), androidAutoContext].filter(Boolean).join('\n\n') || undefined;
-    const sent = await replyAsRebecca(message, client, extraPrompt);
-    if (sent && androidAutoContext) await rememberAndroidAutoReply(sent);
+    const history = await getHistoryContext(message.channel).catch(() => '');
+    let typing = true;
+    const keepTyping = (async () => {
+      while (typing) {
+        if (message.channel.isSendable()) await message.channel.sendTyping().catch(() => {});
+        await new Promise((r) => setTimeout(r, TYPING_INTERVAL_MS));
+      }
+    })();
+    try {
+      const extraPrompt = rollBehavior();
+      const outcome = await safeGenerateSpaceReply(history, {
+        extraSystemPrompt: extraPrompt,
+        client,
+        triggerMessage: message,
+      });
+      if (outcome.kind === 'silent') return;
+      const sent = await message.reply(outcome.text);
+      // Discord generates link previews even for named markdown links; suppress them.
+      await sent.suppressEmbeds().catch((err) => log.warn({ err }, 'Failed to suppress embeds'));
+    } finally {
+      typing = false;
+      await keepTyping;
+    }
   },
 };
