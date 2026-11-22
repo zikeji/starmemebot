@@ -124,7 +124,7 @@ export class SummarizeCommand {
       await interaction.editReply({ embeds: [embed], components: [row] });
     } catch (err) {
       log.error({ err }, 'Summarize failed');
-      await interaction.editReply('The summary drifted into a black hole. Try again shortly. 🐸').catch(() => {});
+      await interaction.editReply('The summary drifted into a black hole. Try again shortly. 🌌').catch(() => {});
     }
   }
 

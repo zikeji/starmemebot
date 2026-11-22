@@ -37,7 +37,7 @@ export const TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          emoji: { type: 'string', description: 'A unicode emoji (e.g. 👍, 🐸) or a custom emoji as <a:name:id>' },
+          emoji: { type: 'string', description: 'A unicode emoji (e.g. 👍, ⭐) or a custom emoji as <a:name:id>' },
         },
         required: ['emoji'],
       },
@@ -228,7 +228,7 @@ export async function executeToolCall(ctx: ToolContext, name: string, args: Reco
   if (name === 'react_to_message') {
     const emoji = String(args.emoji ?? '').trim();
     if (!ctx.reactTarget) return 'Error: no message to react to.';
-    // Discord accepts exactly one emoji per reaction; reject multi-emoji strings like "🐸⭐".
+    // Discord accepts exactly one emoji per reaction; reject multi-emoji strings like "🌠⭐".
     const pictographicCount = [...emoji].filter((ch) => UNICODE_EMOJI_RE.test(ch)).length;
     if (!CUSTOM_EMOJI_RE.test(emoji) && pictographicCount !== 1) {
       return `Error: "${emoji}" is not a single valid emoji.`;

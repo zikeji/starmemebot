@@ -3,6 +3,8 @@ import { isUserDenylisted, loadConfig } from '../config.js';
 import { formatMessageLine } from '../history.js';
 import { generateCorrection, type CorrectionCandidate } from '../llm/corrections.js';
 import { createLogger } from '../logger.js';
+import { rollBehavior } from '../memes/moods.js';
+import { seasonalFlavor } from '../memes/seasonal.js';
 import { isRebeccaSummoned } from '../memes/summon.js';
 import { appendEntry, type ActivityOutcome } from '../self-learning/store.js';
 import { createStore } from '../store.js';
@@ -152,7 +154,8 @@ async function fireCheck(check: FiredCheck): Promise<void> {
 
   let outcome;
   try {
-    outcome = await generateCorrection(client, anchor, chatContext, candidates);
+    const flavor = [rollBehavior(), seasonalFlavor()].filter(Boolean).join('\n\n') || undefined;
+    outcome = await generateCorrection(client, anchor, chatContext, candidates, flavor);
   } catch (err) {
     log.error({ err }, 'Correction LLM call failed');
     await endWithoutPost(guildId, check, 'error');
