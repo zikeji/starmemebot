@@ -7,7 +7,7 @@ const roll = (value: number) => () => value;
 describe('seasonalFlavor', () => {
   it('stays quiet outside the seasons', () => {
     expect(seasonalFlavor(at(7, 4), roll(0))).toBeUndefined();
-    expect(seasonalFlavor(at(11, 21), roll(0))).toBeUndefined();
+    expect(seasonalFlavor(at(11, 14), roll(0))).toBeUndefined();
     expect(seasonalFlavor(at(1, 1), roll(0))).toBeUndefined();
   });
 
@@ -15,6 +15,19 @@ describe('seasonalFlavor', () => {
     expect(seasonalFlavor(at(10, 3), roll(0))).toMatch(/Halloween/);
     expect(seasonalFlavor(at(11, 1), roll(0))).toMatch(/Halloween/);
     expect(seasonalFlavor(at(11, 2), roll(0))).toBeUndefined();
+  });
+
+  it('adds Thanksgiving flavor from November 15th through the 30th', () => {
+    expect(seasonalFlavor(at(11, 15), roll(0))).toMatch(/Thanksgiving/);
+    expect(seasonalFlavor(at(11, 30), roll(0))).toMatch(/Thanksgiving/);
+  });
+
+  it('is more likely on Thanksgiving Day, the fourth Thursday', () => {
+    expect(seasonalFlavor(at(11, 25), roll(0.7))).toBeUndefined();
+    expect(seasonalFlavor(at(11, 26), roll(0.7))).toMatch(/Thanksgiving/);
+    expect(seasonalFlavor(new Date(2027, 10, 25, 12), roll(0.7))).toMatch(/Thanksgiving/);
+    expect(seasonalFlavor(new Date(2027, 10, 26, 12), roll(0.7))).toBeUndefined();
+    expect(seasonalFlavor(new Date(2028, 10, 23, 12), roll(0.7))).toMatch(/Thanksgiving/);
   });
 
   it('adds holiday flavor all of December', () => {
