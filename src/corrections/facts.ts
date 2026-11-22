@@ -15,7 +15,7 @@ export const STARPILOT_7_FACTS = [
   '- The GitHub repo is `StarPilotHQ/StarPilot` (it moved from `firestar5683/StarPilot`).',
   `- Pull requests target the \`stable\` branch. Once a PR is open, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> to discuss it.`,
   '- Flashing and recovery for StarPilot: https://flash.firestar.link installs StarPilot\'s AGNOS directly and has other recovery tools. Point StarPilot users there instead of flash.comma.ai or third-party flashers when they need to flash, are stuck on the boot logo, or a StarPilot install keeps failing after a few retries.',
-  '- Leaving StarPilot (going back to stock openpilot or another fork): do NOT send them to flash.firestar.link. For now point them to https://comma-flash.mindflakes.com/ to flash back to stock.',
+  '- Leaving StarPilot (going back to stock openpilot or another fork): flash.firestar.link handles this too. Steps: open https://flash.firestar.link, under Recovery options check "Flash AGNOS", check "Other" under StarPilot Branch, enter `commaai` as the GitHub username and `master` as the branch (or the other fork\'s username and branch), and make sure "Delete old data" and "Install commaai (master)" are both checked.',
   '- To switch branches in Galaxy: Tools -> System Tools -> Software & Updates -> Advanced options -> Branch.',
   `- Wiki section for all of this: [the migration guide](${MIGRATION_WIKI_URL}).`,
 ].join('\n');
