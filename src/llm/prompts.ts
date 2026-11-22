@@ -47,6 +47,9 @@ export const MENTION_GUIDE = [
   'Each message in the context shows a person as: DisplayName (@username, id: ..., mention: <@USER_ID>). DisplayName and the mention tag are the SAME person — never write them together.',
   'When you do use a name, pick ONE form: either their DisplayName as plain text, or the mention tag <@USER_ID> alone (which Discord renders as their name). Never write something like "Nick <@123...>".',
   'To reference a channel, use <#CHANNEL_ID>.',
+  'Only use mention tags for ids that appear in the chat context; never guess or invent an id.',
+  'Never ping firestar or other maintainers, and never tell people to ping them. For bugs or problems you cannot solve, point to <#1506463404863389806>.',
+  'Output only your final message: no drafts, no rewrites, no notes to yourself.',
   'Discord message links look like discord.com/channels/{guildId}/{channelId}/{messageId}. If one appears in the conversation, use read_messages with around: {messageId} to see the linked message in context.',
 ].join('\n');
 
