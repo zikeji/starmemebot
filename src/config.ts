@@ -22,6 +22,16 @@ export interface BotConfig {
   embeddingModel: string;
   /** JSONL file backing the memory store. */
   memoryFile: string;
+  /** Proactive 7.0 corrections; off unless CORRECTIONS_ENABLED is truthy. */
+  correctionsEnabled: boolean;
+  /** Channel or category IDs where proactive corrections may fire; threads inherit their parent. */
+  correctionChannels: string[];
+  /** Members holding any of these roles never trigger corrections and can cancel them by answering. */
+  trustedRoleIds: string[];
+  /** User IDs allowed to clear the self-learning collection. */
+  botMaintainerIds: string[];
+  /** JSONL file backing the self-learning collection. */
+  selfLearningFile: string;
 }
 
 export function loadConfig(): BotConfig {
@@ -37,15 +47,8 @@ export function loadConfig(): BotConfig {
   const openaiModel = process.env.OPENAI_MODEL;
   if (!openaiModel) throw new Error('OPENAI_MODEL is required');
 
-  const channelDenylist = (process.env.CHANNEL_DENYLIST ?? '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  const userDenylist = (process.env.USER_DENYLIST ?? '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
+  const channelDenylist = parseIdList(process.env.CHANNEL_DENYLIST);
+  const userDenylist = parseIdList(process.env.USER_DENYLIST);
 
   return {
     token,
@@ -54,12 +57,28 @@ export function loadConfig(): BotConfig {
     openaiModel,
     channelDenylist,
     userDenylist,
-    wikiRepo: process.env.WIKI_REPO || 'StarPilot-Docs/docs',
+    wikiRepo: process.env.WIKI_REPO || 'StarPilotHQ/docs',
     wikiCacheDir: process.env.WIKI_CACHE_DIR || 'data/wiki',
     openaiVision: process.env.OPENAI_VISION === 'true',
     embeddingModel: process.env.EMBEDDING_MODEL || 'baai/bge-base-en-v1.5',
     memoryFile: process.env.MEMORY_FILE || 'data/memories.jsonl',
+    correctionsEnabled: isTruthy(process.env.CORRECTIONS_ENABLED),
+    correctionChannels: parseIdList(process.env.CORRECTION_CHANNELS),
+    trustedRoleIds: parseIdList(process.env.TRUSTED_ROLE_IDS),
+    botMaintainerIds: parseIdList(process.env.BOT_MAINTAINER_IDS),
+    selfLearningFile: process.env.SELF_LEARNING_FILE || 'data/self-learning.jsonl',
   };
+}
+
+function parseIdList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function isTruthy(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes((value ?? '').trim().toLowerCase());
 }
 
 export function isUserDenylisted(userId: string): boolean {
