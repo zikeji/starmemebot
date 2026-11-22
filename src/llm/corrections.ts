@@ -23,6 +23,7 @@ const CORRECTION_SYSTEM_PROMPT = [
   '2. Also correct other humans who gave a wrong answer about these facts, kindly and without making them feel bad.',
   '3. If someone already got a correct answer, or the message only mentions these words in passing (testing a feature, installing a dashcam, a person named Dom), leave them out. If nobody needs a fix, call `stay_silent`.',
   '4. Whenever someone names a branch, gets one wrong, or reports an install failing, remind them to type the install string all lowercase, exactly as written.',
+  '4a. Some people have an "install string check" line. Those are computed by code from what they typed and are reliable. If they were typing it into the installer, always point out the exact mistake (quote what they typed and give the correct string), even when their question is about something else like GitHub being down or the device looping back to setup. A typo in the install string is usually the whole problem.',
   '5. Format: one short line per person who needs it, starting with their mention tag <@USER_ID>, at most 3 lines total. Put branch names and install strings in inline code (like `starpilothq/stable`). End with one link to the migration guide as a markdown link when it helps. Light emoji and a kaomoji are welcome; keep the uwu to a minimum so the fix is clear.',
   '6. Say "branch", never "update channel" or "release channel". Never invent facts, dates or links.',
   '7. Output only the message text.',
@@ -32,6 +33,7 @@ export interface CorrectionCandidate {
   authorId: string;
   displayName: string;
   messages: string[];
+  installStringIssues: string[];
 }
 
 export async function generateCorrection(
@@ -42,7 +44,11 @@ export async function generateCorrection(
 ): Promise<RebeccaOutcome> {
   const { openaiEndpoint, openaiApiKey, openaiModel } = loadConfig();
   const candidateList = candidates
-    .map((c) => `- ${c.displayName} (mention: <@${c.authorId}>):\n${c.messages.map((m) => `    "${m}"`).join('\n')}`)
+    .map((c) => {
+      const said = c.messages.map((m) => `    "${m}"`).join('\n');
+      const issues = c.installStringIssues.map((i) => `    install string check: ${i}`).join('\n');
+      return `- ${c.displayName} (mention: <@${c.authorId}>):\n${said}${issues ? `\n${issues}` : ''}`;
+    })
     .join('\n');
   const messages: ChatMessage[] = [
     { role: 'system', content: CORRECTION_SYSTEM_PROMPT },

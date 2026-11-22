@@ -14,6 +14,7 @@ describe('matchesCorrectionTrigger', () => {
     'flash.comma.ai says no compatible device found',
     'stuck on bootlogo after a fresh install',
     'zadig driver installed but still lost connection',
+    'entered starpilothx/stabel',
   ])('queues %s', (content) => expect(matchesCorrectionTrigger(content)).toBe(true));
 
   it.each([
