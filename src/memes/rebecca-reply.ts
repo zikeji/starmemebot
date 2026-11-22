@@ -5,6 +5,7 @@ import { isCorrectionPost, startCorrectionCooldown } from '../corrections/watche
 import { getHistoryContext } from '../history.js';
 import { safeGenerateSpaceReply } from '../llm/rebecca.js';
 import { root as log } from '../logger.js';
+import { seasonalFlavor } from './seasonal.js';
 import { isRebeccaSummoned } from './summon.js';
 import type { Meme } from './types.js';
 
@@ -65,21 +66,6 @@ function rollBehavior(rng: () => number = Math.random): string | undefined {
   return undefined;
 }
 
-const HALLOWEEN_CHANCE = 0.5;
-const HALLOWEEN_NIGHT_CHANCE = 0.85;
-const HALLOWEEN_PROMPT =
-  'Seasonal flavor: it is Halloween season. Add a slight, playful flirty spooky twist to your reply (candy, costumes, haunted nebulae, a wink at whoever you are talking to) while still answering what was asked. Keep it light, one sentence, never mean.';
-
-function halloweenFlavor(now: Date = new Date(), rng: () => number = Math.random): string | undefined {
-  const month = now.getMonth();
-  const day = now.getDate();
-  const isHalloweenNight = month === 9 && day === 31;
-  const inSeason = month === 9 || (month === 10 && day === 1);
-  if (!inSeason) return undefined;
-  const chance = isHalloweenNight ? HALLOWEEN_NIGHT_CHANCE : HALLOWEEN_CHANCE;
-  return rng() < chance ? HALLOWEEN_PROMPT : undefined;
-}
-
 async function needsStarPilotFacts(message: Message): Promise<boolean> {
   if (matchesCorrectionTrigger(message.content)) return true;
   const repliedToId = message.reference?.messageId;
@@ -106,7 +92,7 @@ export const rebeccaReply: Meme = {
         : undefined;
       const extraPrompt = withFacts
         ? [MENTION_FACTS_PROMPT, typoPrompt].filter(Boolean).join('\n\n')
-        : [rollBehavior(), halloweenFlavor()].filter(Boolean).join('\n\n') || undefined;
+        : [rollBehavior(), seasonalFlavor()].filter(Boolean).join('\n\n') || undefined;
       const outcome = await safeGenerateSpaceReply(history, {
         extraSystemPrompt: extraPrompt,
         client,
