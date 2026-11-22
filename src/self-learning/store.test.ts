@@ -68,7 +68,7 @@ describe('self-learning store', () => {
     await appendEntry({ ...base, kind: 'activity', outcome: 'posted', triggerMessageIds: ['t1'], pinged: ['u'], removed: [], text: '<@u> it is `stable` now' });
     await appendEntry({ ...base, kind: 'activity', outcome: 'trusted-cancelled', triggerMessageIds: [], pinged: [], removed: [{ authorId: 'u2', reason: 'trusted-answer' }], text: null });
     const text = buildExport(await readEntries());
-    expect(text).toContain('Correction checks: 2 (posted 1, silent 0, trusted-cancelled 1');
+    expect(text).toContain('Correction checks: 2 (posted 1, silent 0, rejected 0, trusted-cancelled 1');
     expect(text).toContain('gap 1');
     expect(text).toContain('it is testing now');
     expect(text).toContain('https://discord.com/channels/g/c/t1');

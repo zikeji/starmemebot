@@ -20,8 +20,8 @@ const CORRECTION_SYSTEM_PROMPT = [
   '',
   'Rules:',
   '1. Only correct things these facts explicitly cover. If someone needs help the facts do not cover (upgrading from 6.7.9, settings, models, hardware, crashes, flashing steps beyond pointing at the flash tool), do not answer it: call `log_feedback` with category "gap", then `stay_silent` unless someone else in the list still needs a covered fix.',
-  '2. Also correct other humans who gave a wrong answer about these facts, kindly and without making them feel bad.',
-  '3. If someone already got a correct answer, or the message only mentions these words in passing (testing a feature, installing a dashcam, a person named Dom), leave them out. If nobody needs a fix, call `stay_silent`.',
+  '2. Only ever address the people in the "People whose messages triggered this check" list. Everyone else in the chat context is background: never mention, address or correct them, even if they said something that looks wrong (they may be a maintainer talking about their own setup, or it was already sorted out). A listed person who gave someone else a wrong answer about these facts can be corrected, kindly.',
+  '3. If someone already got a correct answer, already said thanks or that it worked, or the message only mentions these words in passing (testing a feature, installing a dashcam, a person named Dom), leave them out. If nobody needs a fix, call `stay_silent`.',
   '4. Whenever someone names a branch, gets one wrong, or reports an install failing, remind them to type the install string all lowercase, exactly as written.',
   '4a. Some people have an "install string check" line. Those are computed by code from what they typed and are reliable. If they were typing it into the installer, always point out the exact mistake (quote what they typed and give the correct string), even when their question is about something else like GitHub being down or the device looping back to setup. A typo in the install string is usually the whole problem.',
   '5. Format: one short line per person who needs it, starting with their mention tag <@USER_ID>, at most 3 lines total. Put branch names and install strings in inline code (like `starpilothq/stable`). End with one link to the migration guide as a markdown link when it helps. Light emoji and a kaomoji are welcome; keep the uwu to a minimum so the fix is clear.',
@@ -104,11 +104,12 @@ export async function generateCorrection(
 const REWRITE_SYSTEM_PROMPT = [
   'You are Rebecca, a bright and cheerful cosmic frog who helps out in the StarPilot Discord server.',
   'A server admin flagged one of your earlier messages as wrong and wrote a correction. Rewrite your message so it is accurate according to the correction.',
+  'You are given the conversation your message was part of. Your rewritten message must still be a direct, relevant reply to the message you were answering; use the conversation to understand what was actually asked. Never turn it into a generic greeting.',
   'Keep your voice and roughly the same length. Keep any <@USER_ID> mentions and links that are still correct; drop ones the correction says are wrong. Do not mention that the message was corrected.',
   'Output only the new message text.',
 ].join('\n');
 
-export async function rewriteWithCorrection(original: string, correction: string): Promise<string> {
+export async function rewriteWithCorrection(original: string, correction: string, conversation: string): Promise<string> {
   const { openaiEndpoint, openaiApiKey, openaiModel } = loadConfig();
   const data = await complete(
     openaiEndpoint,
@@ -116,7 +117,10 @@ export async function rewriteWithCorrection(original: string, correction: string
     openaiModel,
     [
       { role: 'system', content: REWRITE_SYSTEM_PROMPT },
-      { role: 'user', content: `Your original message:\n${original}\n\nAdmin correction:\n${correction}` },
+      {
+        role: 'user',
+        content: `Conversation before your message:\n${conversation || '(unavailable)'}\n\nYour original message:\n${original}\n\nAdmin correction:\n${correction}`,
+      },
     ],
     undefined,
     { maxTokens: MAX_TOKENS, reasoning: { effort: 'low', exclude: true } },

@@ -1,5 +1,6 @@
 import type { Client, Message } from 'discord.js';
-import { loadConfig } from '../config.js';
+import { isUserDenylisted, loadConfig } from '../config.js';
+import { formatMessageLine } from '../history.js';
 import { createLogger } from '../logger.js';
 import {
   buildUserContent,
@@ -106,12 +107,13 @@ export async function generateSpaceReply(
     }
   }
 
+  const userText = `Chat context:\n${chatContext}\n\n${await replyAnchor(triggerMessage)}Task: Reply to that message with peak cosmic energy (or react/stay silent only when that genuinely fits better)!`;
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
     {
       role: 'user',
       content: buildUserContent(
-        `Chat context:\n${chatContext}\n\nTask: Reply to the last person's message with peak cosmic energy (or react/stay silent only when that genuinely fits better)!`,
+        userText,
         images,
       ),
     },
@@ -143,7 +145,7 @@ export async function generateSpaceReply(
         messages[1] = {
           role: 'user',
           content: buildUserContent(
-            `Chat context:\n${chatContext}\n\nTask: Reply to the last person's message with peak cosmic energy (or react/stay silent only when that genuinely fits better)!`,
+            userText,
             [],
           ),
         };
@@ -249,6 +251,18 @@ export async function generateSpaceReply(
     }
   }
   throw new Error('Unreachable');
+}
+
+async function replyAnchor(triggerMessage: Message | undefined): Promise<string> {
+  if (!triggerMessage) return 'You are replying to the last message above.\n\n';
+  const lines = [`You are replying to this message: ${formatMessageLine(triggerMessage)}`];
+  const repliedTo = triggerMessage.reference?.messageId
+    ? await triggerMessage.fetchReference().catch(() => null)
+    : null;
+  if (repliedTo && !isUserDenylisted(repliedTo.author.id)) {
+    lines.push(`It is a reply to this earlier message: ${formatMessageLine(repliedTo)}`);
+  }
+  return `${lines.join('\n')}\n\n`;
 }
 
 export async function safeGenerateSpaceReply(

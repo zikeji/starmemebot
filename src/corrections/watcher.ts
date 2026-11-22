@@ -8,6 +8,7 @@ import { appendEntry, type ActivityOutcome } from '../self-learning/store.js';
 import { createStore } from '../store.js';
 import { matchesCorrectionTrigger } from './facts.js';
 import { installStringIssues } from './install-string.js';
+import { checkTargets } from './targets.js';
 import { CorrectionScheduler, type CheckEntry, type DroppedCheck, type FiredCheck } from './scheduler.js';
 
 const log = createLogger('corrections');
@@ -164,13 +165,18 @@ async function fireCheck(check: FiredCheck): Promise<void> {
   }
 
   const pingable = check.entries.map((e) => e.authorId);
+  const { addressed, strays } = checkTargets(outcome.text, pingable);
+  if (strays.length > 0 || addressed.length === 0) {
+    log.warn({ channelId: check.channelId, strays, addressed }, 'Correction addressed someone outside the check; not posting');
+    await endWithoutPost(guildId, check, 'rejected', outcome.text);
+    return;
+  }
   const lastSeenId = history.at(-1)?.id;
   if (lastSeenId && (await answeredSince(channel, lastSeenId, pingable))) {
     log.info({ channelId: check.channelId }, 'Trusted member answered while the correction was being written');
     await endWithoutPost(guildId, check, 'trusted-cancelled', outcome.text);
     return;
   }
-  const pinged = pingable.filter((id) => new RegExp(`<@!?${id}>`).test(outcome.text));
   let sent: Message;
   try {
     sent = await channel.send({
@@ -185,8 +191,8 @@ async function fireCheck(check: FiredCheck): Promise<void> {
   }
   scheduler.startCooldown(check.channelId);
   await correctionPosts.set(sent.id, true).catch((err) => log.warn({ err }, 'Failed to remember correction post'));
-  log.info({ channelId: check.channelId, pinged }, 'Correction posted');
-  await recordActivity(guildId, check, 'posted', sent.content, pinged);
+  log.info({ channelId: check.channelId, pinged: addressed }, 'Correction posted');
+  await recordActivity(guildId, check, 'posted', sent.content, addressed);
 }
 
 async function answeredSince(
