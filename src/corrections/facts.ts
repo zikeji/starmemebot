@@ -12,13 +12,14 @@ export const STARPILOT_7_FACTS = [
   '- Install strings: `starpilothq/stable` and `starpilothq/testing`. Always tell people to type it all lowercase, exactly as written.',
   '- The GitHub repo is `StarPilotHQ/StarPilot` (it moved from `firestar5683/StarPilot`).',
   `- Pull requests target the \`stable\` branch. Once a PR is open, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> to discuss it.`,
+  '- Flashing and recovery: https://flash.firestar.link installs StarPilot\'s AGNOS directly and has other recovery tools. Point people there instead of flash.comma.ai or third-party flashers when they need to flash, are stuck on the boot logo, or an install keeps failing after a few retries.',
   '- To switch branches in Galaxy: Tools -> System Tools -> Software & Updates -> Advanced options -> Branch.',
   `- Wiki section for all of this: [the migration guide](${MIGRATION_WIKI_URL}).`,
 ].join('\n');
 
 export const MENTION_FACTS_PROMPT = [
   STARPILOT_7_FACTS,
-  'For questions about StarPilot branch names, install strings, the GitHub repo or where PRs go, answer from these facts instead of calling search_wiki, and link the migration guide when it helps.',
+  'For questions about StarPilot branch names, install strings, the GitHub repo, where PRs go, or flashing and recovery, answer from these facts instead of calling search_wiki, and link the migration guide when it helps.',
   'Do not extend these facts: anything they do not cover (upgrading from 6.7.9, settings, models, hardware) still follows the usual wiki rules.',
 ].join('\n');
 
@@ -33,6 +34,11 @@ const TRIGGER_PATTERNS: RegExp[] = [
   /\/\s*(stable|testing|dom|starpilot)\b/i,
   /\b(won'?t|wont|can'?t|cant|doesn'?t|doesnt|didn'?t|didnt|fails?|failed|failing)\b.{0,40}\b(install|download)/i,
   /\b(restarts?|starts over|loops?)\b.{0,30}\d{1,3}\s?%/i,
+  /\bflash(es|ed|ing)?\b/i,
+  /\bboot\s?logo\b/i,
+  /\b(zadig|qdl|qusb|agnos)\b/i,
+  /\bbrick(ed)?\b/i,
+  /\bfactory reset\b/i,
 ];
 
 export function matchesCorrectionTrigger(content: string): boolean {
