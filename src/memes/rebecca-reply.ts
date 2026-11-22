@@ -1,5 +1,6 @@
 import type { Client, Message } from 'discord.js';
 import { MENTION_FACTS_PROMPT, matchesCorrectionTrigger } from '../corrections/facts.js';
+import { installStringIssues } from '../corrections/install-string.js';
 import { isCorrectionPost, startCorrectionCooldown } from '../corrections/watcher.js';
 import { getHistoryContext } from '../history.js';
 import { safeGenerateSpaceReply } from '../llm/rebecca.js';
@@ -99,8 +100,12 @@ export const rebeccaReply: Meme = {
     })();
     try {
       const withFacts = await needsStarPilotFacts(message);
+      const typos = installStringIssues(message.content);
+      const typoPrompt = typos.length
+        ? `Install string check (computed by code, reliable). Point out the exact mistake even if they asked about something else:\n${typos.map((t) => `- ${t}`).join('\n')}`
+        : undefined;
       const extraPrompt = withFacts
-        ? MENTION_FACTS_PROMPT
+        ? [MENTION_FACTS_PROMPT, typoPrompt].filter(Boolean).join('\n\n')
         : [rollBehavior(), halloweenFlavor()].filter(Boolean).join('\n\n') || undefined;
       const outcome = await safeGenerateSpaceReply(history, {
         extraSystemPrompt: extraPrompt,

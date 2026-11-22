@@ -7,6 +7,7 @@ import { isRebeccaSummoned } from '../memes/summon.js';
 import { appendEntry, type ActivityOutcome } from '../self-learning/store.js';
 import { createStore } from '../store.js';
 import { matchesCorrectionTrigger } from './facts.js';
+import { installStringIssues } from './install-string.js';
 import { CorrectionScheduler, type CheckEntry, type DroppedCheck, type FiredCheck } from './scheduler.js';
 
 const log = createLogger('corrections');
@@ -144,6 +145,7 @@ async function fireCheck(check: FiredCheck): Promise<void> {
       authorId: entry.authorId,
       displayName: own[0]?.member?.displayName ?? own[0]?.author.username ?? entry.authorId,
       messages: own.map((m) => m.content),
+      installStringIssues: own.flatMap((m) => installStringIssues(m.content)),
     };
   });
 

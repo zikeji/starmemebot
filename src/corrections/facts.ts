@@ -1,3 +1,5 @@
+import { installStringIssues } from './install-string.js';
+
 export const MIGRATION_WIKI_URL =
   'https://wiki.firestar.link/software/starpilot/#channel-names-and-the-one-time-migration';
 
@@ -42,5 +44,5 @@ const TRIGGER_PATTERNS: RegExp[] = [
 ];
 
 export function matchesCorrectionTrigger(content: string): boolean {
-  return TRIGGER_PATTERNS.some((pattern) => pattern.test(content));
+  return TRIGGER_PATTERNS.some((pattern) => pattern.test(content)) || installStringIssues(content).length > 0;
 }
