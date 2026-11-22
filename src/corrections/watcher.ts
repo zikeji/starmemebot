@@ -140,7 +140,9 @@ async function fireCheck(check: FiredCheck): Promise<void> {
     const ref = await trigger.fetchReference().catch(() => null);
     if (ref && !isUserDenylisted(ref.author.id)) repliedLines.push(`(earlier message being replied to) ${formatMessageLine(ref)}`);
   }
-  const chatContext = [...repliedLines, ...scrolledOff, ...window.map(formatMessageLine)].join('\n');
+  const { trustedRoleIds } = loadConfig();
+  const contextLine = (m: Message) => `${isTrusted(m, trustedRoleIds) ? '[trusted helper] ' : ''}${formatMessageLine(m)}`;
+  const chatContext = [...repliedLines, ...scrolledOff, ...window.map(contextLine)].join('\n');
 
   const candidates: CorrectionCandidate[] = check.entries.map((entry) => {
     const own = triggers.filter((m) => m.author.id === entry.authorId);
