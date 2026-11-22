@@ -4,6 +4,7 @@ export const MIGRATION_WIKI_URL =
   'https://wiki.firestar.link/software/starpilot/#channel-names-and-the-one-time-migration';
 
 const SUBMIT_FEEDBACK_CHANNEL_ID = '1506463404863389806';
+const SHARE_ROUTE_COMMAND_ID = '1514546180896456804';
 
 export const STARPILOT_7_FACTS = [
   'StarPilot 7.0 facts (from the maintainers):',
@@ -16,7 +17,8 @@ export const STARPILOT_7_FACTS = [
   `- Pull requests target the \`stable\` branch. Once a PR is open, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> to discuss it.`,
   '- Flashing and recovery for StarPilot: https://flash.firestar.link installs StarPilot\'s AGNOS directly and has other recovery tools. Suggest it when a StarPilot user asks how to flash or recover, is stuck on the boot logo, or a StarPilot install keeps failing after a few retries. Never correct people for having used flash.comma.ai or another flasher; those work too.',
   '- Leaving StarPilot (going back to stock openpilot or another fork): flash.firestar.link handles this too. Steps: open https://flash.firestar.link, under Recovery options check "Flash AGNOS", check "Other" under StarPilot Branch, enter `commaai` as the GitHub username and `master` as the branch (or the other fork\'s username and branch), and make sure "Delete old data" and "Install commaai (master)" are both checked.',
-  `- Sharing logs: follow https://firestar.link/logs. In connect.comma.ai (signed in to the account the device is paired to), open the route, select the segments where it happened, then Files -> "upload all logs". Then open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> with the route and the approximate minute. Never DM logs to firestar or anyone else.`,
+  `- Sharing logs: follow https://firestar.link/logs. In connect.comma.ai (signed in to the account the device is paired to), open the route, select the segments where it happened, then Files -> "upload all logs". Never DM logs to firestar, di31 or anyone else.`,
+  `- Where the uploaded route goes: if a maintainer or Sage in the conversation (marked [trusted helper] in the chat context) asked for logs and did not ask for a ticket, the person can share it right there with </share-route:${SHARE_ROUTE_COMMAND_ID}>. Otherwise, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> with the route and the approximate minute.`,
   '- To switch branches in Galaxy: Tools -> System Tools -> Software & Updates -> Advanced options -> Branch.',
   `- Wiki section for all of this: [the migration guide](${MIGRATION_WIKI_URL}).`,
 ].join('\n');
