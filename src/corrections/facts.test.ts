@@ -15,6 +15,9 @@ describe('matchesCorrectionTrigger', () => {
     'stuck on bootlogo after a fresh install',
     'zadig driver installed but still lost connection',
     'entered starpilothx/stabel',
+    'Is there instructions how to grab a log',
+    'How do i exportthe logs you need anddo i DM them to you?',
+    'how do I send logs for my fingerprint',
   ])('queues %s', (content) => expect(matchesCorrectionTrigger(content)).toBe(true));
 
   it.each([
@@ -22,5 +25,6 @@ describe('matchesCorrectionTrigger', () => {
     'firestar deleted your car how does that make you feel',
     'my pedal throws propulsion errors',
     'domestic flights are cheap',
+    'I need to log in to galaxy again',
   ])('ignores %s', (content) => expect(matchesCorrectionTrigger(content)).toBe(false));
 });

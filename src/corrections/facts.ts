@@ -16,13 +16,14 @@ export const STARPILOT_7_FACTS = [
   `- Pull requests target the \`stable\` branch. Once a PR is open, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> to discuss it.`,
   '- Flashing and recovery for StarPilot: https://flash.firestar.link installs StarPilot\'s AGNOS directly and has other recovery tools. Suggest it when a StarPilot user asks how to flash or recover, is stuck on the boot logo, or a StarPilot install keeps failing after a few retries. Never correct people for having used flash.comma.ai or another flasher; those work too.',
   '- Leaving StarPilot (going back to stock openpilot or another fork): flash.firestar.link handles this too. Steps: open https://flash.firestar.link, under Recovery options check "Flash AGNOS", check "Other" under StarPilot Branch, enter `commaai` as the GitHub username and `master` as the branch (or the other fork\'s username and branch), and make sure "Delete old data" and "Install commaai (master)" are both checked.',
+  `- Sharing logs: follow https://firestar.link/logs. In connect.comma.ai (signed in to the account the device is paired to), open the route, select the segments where it happened, then Files -> "upload all logs". Then open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> with the route and the approximate minute. Never DM logs to firestar or anyone else.`,
   '- To switch branches in Galaxy: Tools -> System Tools -> Software & Updates -> Advanced options -> Branch.',
   `- Wiki section for all of this: [the migration guide](${MIGRATION_WIKI_URL}).`,
 ].join('\n');
 
 export const MENTION_FACTS_PROMPT = [
   STARPILOT_7_FACTS,
-  'For questions about StarPilot branch names, install strings, the GitHub repo, where PRs go, or flashing and recovery, answer from these facts instead of calling search_wiki, and link the migration guide when it helps.',
+  'For questions about StarPilot branch names, install strings, the GitHub repo, where PRs go, flashing and recovery, or how to share logs, answer from these facts instead of calling search_wiki, and link the migration guide when it helps.',
   'Do not extend these facts: anything they do not cover (upgrading from 6.7.9, settings, models, hardware) still follows the usual wiki rules.',
 ].join('\n');
 
@@ -42,6 +43,11 @@ const TRIGGER_PATTERNS: RegExp[] = [
   /\b(zadig|qdl|qusb|agnos)\b/i,
   /\bbrick(ed)?\b/i,
   /\bfactory reset\b/i,
+  /\b(send|share|upload|grab|get|export|submit|attach|pull|dm)\w*\b.{0,30}\b(logs?|routes?)\b/i,
+  /\b(logs?|routes?)\b.{0,30}\b(how|where|instructions?)\b/i,
+  /\bhow (do|can|should) (i|we|you)\b.{0,30}\blogs?\b/i,
+  /connect\.comma\.ai/i,
+  /\bshare-route\b/i,
 ];
 
 export function matchesCorrectionTrigger(content: string): boolean {
