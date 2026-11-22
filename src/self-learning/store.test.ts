@@ -67,10 +67,13 @@ describe('self-learning store', () => {
     await appendEntry({ ...base, kind: 'admin-correction', messageId: 'r1', correctorId: 'admin', original: 'use Dom', correction: 'it is testing now', rewritten: 'use `testing`' });
     await appendEntry({ ...base, kind: 'activity', outcome: 'posted', triggerMessageIds: ['t1'], pinged: ['u'], removed: [], text: '<@u> it is `stable` now' });
     await appendEntry({ ...base, kind: 'activity', outcome: 'trusted-cancelled', triggerMessageIds: [], pinged: [], removed: [{ authorId: 'u2', reason: 'trusted-answer' }], text: null });
+    await appendEntry({ ...base, kind: 'trusted-reply', messageId: 'f1', authorId: 'firestar', reply: 'they can also use /share-route', rebeccaMessageId: 'r2', rebeccaText: 'open a ticket' });
     const text = buildExport(await readEntries());
     expect(text).toContain('Correction checks: 2 (posted 1, silent 0, rejected 0, trusted-cancelled 1');
     expect(text).toContain('gap 1');
     expect(text).toContain('it is testing now');
     expect(text).toContain('https://discord.com/channels/g/c/t1');
+    expect(text).toContain('Trusted replies to Rebecca: 1');
+    expect(text).toContain('they can also use /share-route');
   });
 });

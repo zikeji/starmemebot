@@ -195,6 +195,7 @@ async function fireCheck(check: FiredCheck): Promise<void> {
     return;
   }
   scheduler.startCooldown(check.channelId);
+  for (const id of addressed) scheduler.startAuthorCooldown(id);
   await correctionPosts.set(sent.id, true).catch((err) => log.warn({ err }, 'Failed to remember correction post'));
   log.info({ channelId: check.channelId, pinged: addressed }, 'Correction posted');
   await recordActivity(guildId, check, 'posted', sent.content, addressed);

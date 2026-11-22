@@ -2,6 +2,7 @@ export const BASE_WAIT_MS = 60_000;
 export const BUMP_FLOOR_MS = 30_000;
 export const HARD_CAP_MS = 180_000;
 export const COOLDOWN_MS = 5 * 60_000;
+export const AUTHOR_COOLDOWN_MS = 2 * 60 * 60_000;
 
 export type RemovalReason = 'trusted-answer' | 'mentioned-rebecca';
 
@@ -43,6 +44,7 @@ interface ActiveCheck {
 export class CorrectionScheduler {
   private checks = new Map<string, ActiveCheck>();
   private cooldownUntil = new Map<string, number>();
+  private authorCooldownUntil = new Map<string, number>();
 
   constructor(
     private hooks: SchedulerHooks,
@@ -51,7 +53,7 @@ export class CorrectionScheduler {
 
   trigger(channelId: string, authorId: string, messageId: string): void {
     const now = this.now();
-    if (now < (this.cooldownUntil.get(channelId) ?? 0)) {
+    if (now < (this.cooldownUntil.get(channelId) ?? 0) || now < (this.authorCooldownUntil.get(authorId) ?? 0)) {
       this.bump(channelId);
       return;
     }
@@ -90,6 +92,10 @@ export class CorrectionScheduler {
 
   startCooldown(channelId: string): void {
     this.cooldownUntil.set(channelId, this.now() + COOLDOWN_MS);
+  }
+
+  startAuthorCooldown(authorId: string): void {
+    this.authorCooldownUntil.set(authorId, this.now() + AUTHOR_COOLDOWN_MS);
   }
 
   clearCooldown(channelId: string): void {
