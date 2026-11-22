@@ -11,7 +11,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export type FeedbackCategory = 'gap' | 'disputed' | 'uncertain';
 export const FEEDBACK_CATEGORIES: readonly FeedbackCategory[] = ['gap', 'disputed', 'uncertain'];
 
-export type ActivityOutcome = 'posted' | 'silent' | 'error' | 'trusted-cancelled' | 'emptied';
+export type ActivityOutcome = 'posted' | 'silent' | 'rejected' | 'error' | 'trusted-cancelled' | 'emptied';
 
 interface EntryBase {
   at: string;

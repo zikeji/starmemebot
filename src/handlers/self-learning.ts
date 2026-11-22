@@ -12,11 +12,13 @@ import {
   TextInputStyle,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type Message,
   type MessageContextMenuCommandInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { ButtonComponent, ContextMenu, Discord, ModalComponent, Slash, SlashGroup } from 'discordx';
-import { loadConfig } from '../config.js';
+import { isUserDenylisted, loadConfig } from '../config.js';
+import { formatMessageLine } from '../history.js';
 import { rewriteWithCorrection } from '../llm/corrections.js';
 import { createLogger } from '../logger.js';
 import { buildExport } from '../self-learning/export.js';
@@ -25,6 +27,7 @@ import { appendEntry, clearEntriesUpTo, readEntries } from '../self-learning/sto
 const log = createLogger('self-learning');
 const CORRECT_MODAL_PREFIX = 'correct-rebecca:';
 const CORRECTION_FIELD = 'correction';
+const REWRITE_CONTEXT_MESSAGES = 15;
 const CLEAR_BUTTON_PREFIX = 'self-learning:clear:';
 const KEEP_BUTTON = 'self-learning:keep';
 
@@ -66,10 +69,11 @@ export class CorrectRebecca {
       return;
     }
     const original = message.content;
+    const conversation = await conversationBefore(message);
 
     let rewritten: string | null = null;
     try {
-      rewritten = await rewriteWithCorrection(original, correction);
+      rewritten = await rewriteWithCorrection(original, correction, conversation);
       await message.edit({ content: rewritten, allowedMentions: { parse: [] } });
     } catch (err) {
       log.error({ err, messageId }, 'Failed to rewrite corrected message');
@@ -98,6 +102,21 @@ export class CorrectRebecca {
         : 'Saved for review, but rewriting the message failed. You may want to delete it.',
     );
   }
+}
+
+async function conversationBefore(message: Message): Promise<string> {
+  const before = await message.channel.messages
+    .fetch({ before: message.id, limit: REWRITE_CONTEXT_MESSAGES })
+    .catch(() => null);
+  const lines = [...(before?.values() ?? [])]
+    .reverse()
+    .filter((m) => !isUserDenylisted(m.author.id))
+    .map(formatMessageLine);
+  const answered = message.reference?.messageId ? await message.fetchReference().catch(() => null) : null;
+  if (answered && !isUserDenylisted(answered.author.id)) {
+    lines.push(`(the message you were replying to) ${formatMessageLine(answered)}`);
+  }
+  return lines.join('\n');
 }
 
 @Discord()
