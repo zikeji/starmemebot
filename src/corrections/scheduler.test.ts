@@ -152,6 +152,20 @@ describe('CorrectionScheduler', () => {
     expect(fired).toHaveLength(1);
   });
 
+  it('leaves a person alone for two hours after correcting them, in any channel', () => {
+    const { scheduler, fired } = setup();
+    scheduler.startAuthorCooldown('bacesb');
+    scheduler.trigger('c1', 'bacesb', 'm1');
+    scheduler.trigger('c2', 'bacesb', 'm2');
+    scheduler.trigger('c1', 'other', 'm3');
+    vi.advanceTimersByTime(60 * SECOND);
+    expect(fired.map(authors)).toEqual([['other']]);
+    vi.advanceTimersByTime(2 * 60 * 60 * SECOND);
+    scheduler.trigger('c2', 'bacesb', 'm4');
+    vi.advanceTimersByTime(60 * SECOND);
+    expect(fired.map(authors)).toEqual([['other'], ['bacesb']]);
+  });
+
   it('keeps channels independent', () => {
     const { scheduler, fired } = setup();
     scheduler.trigger('c1', 'a', 'm1');

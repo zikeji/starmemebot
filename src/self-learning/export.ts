@@ -4,6 +4,7 @@ import {
   type AdminCorrectionEntry,
   type FeedbackEntry,
   type SelfLearningEntry,
+  type TrustedReplyEntry,
 } from './store.js';
 
 const RECENT_ACTIVITY_LIMIT = 50;
@@ -12,6 +13,7 @@ export function buildExport(entries: SelfLearningEntry[], now: Date = new Date()
   const corrections = entries.filter((e): e is AdminCorrectionEntry => e.kind === 'admin-correction');
   const feedback = entries.filter((e): e is FeedbackEntry => e.kind === 'feedback');
   const activity = entries.filter((e): e is ActivityEntry => e.kind === 'activity');
+  const trustedReplies = entries.filter((e): e is TrustedReplyEntry => e.kind === 'trusted-reply');
   const since = entries.reduce((min, e) => (e.at < min ? e.at : min), entries[0]?.at ?? now.toISOString());
 
   const count = (outcome: ActivityEntry['outcome']) => activity.filter((a) => a.outcome === outcome).length;
@@ -28,10 +30,14 @@ export function buildExport(entries: SelfLearningEntry[], now: Date = new Date()
     `# Stats (${since} to ${now.toISOString()})`,
     `- Correction checks: ${activity.length} (posted ${count('posted')}, silent ${count('silent')}, rejected ${count('rejected')}, trusted-cancelled ${count('trusted-cancelled')}, emptied ${count('emptied')}, errors ${count('error')})`,
     `- Admin corrections: ${corrections.length}`,
+    `- Trusted replies to Rebecca: ${trustedReplies.length}`,
     `- Feedback: gap ${feedbackCount('gap')}, disputed ${feedbackCount('disputed')}, uncertain ${feedbackCount('uncertain')}`,
     '',
     '# Admin corrections (Correct Rebecca)',
     ...(corrections.length === 0 ? ['(none)'] : corrections.map(formatCorrection)),
+    '',
+    '# Trusted members replying to Rebecca (often corrections or additions)',
+    ...(trustedReplies.length === 0 ? ['(none)'] : trustedReplies.map(formatTrustedReply)),
     '',
     '# Feedback Rebecca logged herself',
     ...(feedback.length === 0 ? ['(none)'] : feedback.map(formatFeedback)),
@@ -55,6 +61,16 @@ function formatCorrection(e: AdminCorrectionEntry): string {
     indent(e.correction),
     '  Rewritten to:',
     indent(e.rewritten ?? '(rewrite failed)'),
+  ].join('\n');
+}
+
+function formatTrustedReply(e: TrustedReplyEntry): string {
+  return [
+    `## ${e.at} by ${e.authorId} (${jumpLink(e)})`,
+    '  Rebecca said:',
+    indent(e.rebeccaText),
+    '  They replied:',
+    indent(e.reply),
   ].join('\n');
 }
 

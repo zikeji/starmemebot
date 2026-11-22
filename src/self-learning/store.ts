@@ -46,12 +46,22 @@ export interface ActivityEntry extends EntryBase {
   text: string | null;
 }
 
-export type SelfLearningEntry = AdminCorrectionEntry | FeedbackEntry | ActivityEntry;
+export interface TrustedReplyEntry extends EntryBase {
+  kind: 'trusted-reply';
+  messageId: string;
+  authorId: string;
+  reply: string;
+  rebeccaMessageId: string;
+  rebeccaText: string;
+}
+
+export type SelfLearningEntry = AdminCorrectionEntry | FeedbackEntry | ActivityEntry | TrustedReplyEntry;
 
 export type NewEntry =
   | Omit<AdminCorrectionEntry, 'at'>
   | Omit<FeedbackEntry, 'at'>
-  | Omit<ActivityEntry, 'at'>;
+  | Omit<ActivityEntry, 'at'>
+  | Omit<TrustedReplyEntry, 'at'>;
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 
