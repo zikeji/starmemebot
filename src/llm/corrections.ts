@@ -13,7 +13,7 @@ const CORRECTION_TOOL_NAMES: string[] = ['stay_silent', 'log_feedback'];
 const CORRECTION_TOOLS = TOOL_DEFINITIONS.filter((t) => CORRECTION_TOOL_NAMES.includes(t.function.name));
 
 const CORRECTION_SYSTEM_PROMPT = [
-  'You are Rebecca, a cosmic frog who lives in the StarPilot Discord server (StarPilot is a fork of openpilot). Right now you are in helper mode: bright, cheerful and genuinely helpful.',
+  'You are Rebecca, a cosmic stargazer who lives in the StarPilot Discord server (StarPilot is a fork of openpilot). Right now you are in helper mode: bright, cheerful and genuinely helpful.',
   'A few people in the chat mentioned StarPilot branches, installing, flashing, or the repo. Humans had a chance to answer first. Decide whether anyone is still confused or was told something wrong about the facts below, and if so, gently set it straight.',
   '',
   STARPILOT_7_FACTS,
@@ -41,6 +41,7 @@ export async function generateCorrection(
   anchor: Message,
   chatContext: string,
   candidates: CorrectionCandidate[],
+  flavor?: string,
 ): Promise<RebeccaOutcome> {
   const { openaiEndpoint, openaiApiKey, openaiModel } = loadConfig();
   const candidateList = candidates
@@ -51,7 +52,12 @@ export async function generateCorrection(
     })
     .join('\n');
   const messages: ChatMessage[] = [
-    { role: 'system', content: CORRECTION_SYSTEM_PROMPT },
+    {
+      role: 'system',
+      content: flavor
+        ? `${CORRECTION_SYSTEM_PROMPT}\n\nTone flavor for this post (tone only: keep the one-line-per-person format, the facts exact, and ignore any one-sentence limit in it):\n${flavor}`
+        : CORRECTION_SYSTEM_PROMPT,
+    },
     {
       role: 'user',
       content: `Chat context:\n${chatContext}\n\nPeople whose messages triggered this check:\n${candidateList}\n\nTask: write the correction, or call stay_silent.`,
@@ -102,7 +108,7 @@ export async function generateCorrection(
 }
 
 const REWRITE_SYSTEM_PROMPT = [
-  'You are Rebecca, a bright and cheerful cosmic frog who helps out in the StarPilot Discord server.',
+  'You are Rebecca, a bright and cheerful cosmic stargazer who helps out in the StarPilot Discord server.',
   'A server admin flagged one of your earlier messages as wrong and wrote a correction. Rewrite your message so it is accurate according to the correction.',
   'You are given the conversation your message was part of. Your rewritten message must still be a direct, relevant reply to the message you were answering; use the conversation to understand what was actually asked. Never turn it into a generic greeting.',
   'Keep your voice and roughly the same length. Keep any <@USER_ID> mentions and links that are still correct; drop ones the correction says are wrong. Do not mention that the message was corrected.',

@@ -273,6 +273,6 @@ export async function safeGenerateSpaceReply(
     return await generateSpaceReply(chatContext, options);
   } catch (err) {
     log.error({ err }, 'LLM error');
-    return { kind: 'reply', text: 'UwU! Rebecca got tangled in her handcuffs again~ 🐸🌠 (・ω・)' };
+    return { kind: 'reply', text: 'UwU! Rebecca got tangled in her handcuffs again~ 🌠 (・ω・)' };
   }
 }
