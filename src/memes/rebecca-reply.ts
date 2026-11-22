@@ -5,6 +5,7 @@ import { isCorrectionPost, startCorrectionCooldown } from '../corrections/watche
 import { getHistoryContext } from '../history.js';
 import { safeGenerateSpaceReply } from '../llm/rebecca.js';
 import { root as log } from '../logger.js';
+import { idsInContext, stripUnknownMentions } from './mentions.js';
 import { rollBehavior } from './moods.js';
 import { seasonalFlavor } from './seasonal.js';
 import { isRebeccaSummoned } from './summon.js';
@@ -38,7 +39,7 @@ export const rebeccaReply: Meme = {
         : undefined;
       const flavor = [rollBehavior(), seasonalFlavor()].filter(Boolean).join('\n\n');
       const facts = withFacts
-        ? [MENTION_FACTS_PROMPT, typoPrompt, flavor && 'The mood or seasonal flavor below only changes your tone; the facts above stay exact.']
+        ? [MENTION_FACTS_PROMPT, typoPrompt, flavor && 'The mood or seasonal flavor below is a light touch on tone only (a short phrase or an emoji at most); the help comes first and the facts stay exact.']
         : [];
       const extraPrompt = [...facts, flavor].filter(Boolean).join('\n\n') || undefined;
       const outcome = await safeGenerateSpaceReply(history, {
@@ -47,7 +48,9 @@ export const rebeccaReply: Meme = {
         triggerMessage: message,
       });
       if (outcome.kind === 'silent') return;
-      const sent = await message.reply(outcome.text);
+      const text = stripUnknownMentions(outcome.text, idsInContext(history));
+      if (!text) return;
+      const sent = await message.reply({ content: text, allowedMentions: { parse: [], repliedUser: true } });
       if (withFacts) startCorrectionCooldown(message.channelId);
       // Discord generates link previews even for named markdown links; suppress them.
       await sent.suppressEmbeds().catch((err) => log.warn({ err }, 'Failed to suppress embeds'));
