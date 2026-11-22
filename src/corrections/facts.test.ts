@@ -11,6 +11,9 @@ describe('matchesCorrectionTrigger', () => {
     "it won't install on my c3",
     'starpilothq/stable goes to 10% then process starts over',
     'restarts at 45% every time',
+    'flash.comma.ai says no compatible device found',
+    'stuck on bootlogo after a fresh install',
+    'zadig driver installed but still lost connection',
   ])('queues %s', (content) => expect(matchesCorrectionTrigger(content)).toBe(true));
 
   it.each([
