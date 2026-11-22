@@ -14,6 +14,7 @@ import {
 const REBECCA_MAX_TOKENS_CEILING = 1600;
 import {
   BASE_SYSTEM_PROMPT,
+  FEEDBACK_GUIDE,
   MEMORY_GUIDE,
   MENTION_GUIDE,
   SERVER_CONTEXT,
@@ -56,7 +57,7 @@ export async function generateSpaceReply(
   // Offered only when the memory tools are (client + guild) so the prompt never
   // advertises capabilities missing from the tool schema (e.g. DMs).
   if (client && triggerMessage?.guild) {
-    systemPrompt = `${systemPrompt}\n\n${MEMORY_GUIDE}`;
+    systemPrompt = `${systemPrompt}\n\n${MEMORY_GUIDE}\n\n${FEEDBACK_GUIDE}`;
   }
   if (triggerMessage?.guild) {
     const now = new Date();
@@ -77,7 +78,7 @@ export async function generateSpaceReply(
   // react/silent are always available; memory tools need a client+guild (their execution
   // dereferences both); the channel tools only when there is a list to advertise.
   const alwaysTools = client && triggerMessage?.guild
-    ? ['react_to_message', 'stay_silent', 'search_memories', 'store_memory', 'update_memory']
+    ? ['react_to_message', 'stay_silent', 'search_memories', 'store_memory', 'update_memory', 'log_feedback']
     : ['react_to_message', 'stay_silent'];
   const tools = client && channels.length > 0 ? TOOL_DEFINITIONS : TOOL_DEFINITIONS.filter((t) =>
     alwaysTools.includes(t.function.name),
@@ -200,6 +201,7 @@ export async function generateSpaceReply(
       viewerId: triggerMessage!.author.id,
       triggerChannelId: triggerMessage?.channelId,
       reactTarget: triggerMessage,
+      feedbackContext: chatContext,
     };
     for (const call of toolCalls) {
       let args: Record<string, unknown>;

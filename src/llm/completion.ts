@@ -52,7 +52,7 @@ export async function complete(
         model,
         messages,
         tools,
-        tool_choice: 'auto',
+        tool_choice: tools?.length ? 'auto' : undefined,
         max_tokens: opts.maxTokens ?? MAX_OUTPUT_TOKENS,
         reasoning: opts.reasoning,
       }),

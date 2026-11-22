@@ -7,6 +7,7 @@ import { embed } from '../memories/embeddings.js';
 import { guardMemoryUpdate, guardNewMemory } from '../memories/guard.js';
 import { appendMemory, getMemoryTextById, searchByVector, updateMemoryText } from '../memories/store.js';
 import { getWikiStatus, searchWiki } from '../wiki/wiki.js';
+import { appendEntry, FEEDBACK_CATEGORIES, feedbackRefusal, type FeedbackCategory } from '../self-learning/store.js';
 
 const log = createLogger('llm:tools');
 const TOOL_MESSAGE_LIMIT = 15;
@@ -165,6 +166,22 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'log_feedback',
+      description:
+        'Leave a note for the humans who maintain you, for later review. Never visible in chat and never changes what you know. Use only for: "gap" (a StarPilot question your facts did not cover, so you stayed silent or deferred), "disputed" (someone says you or your facts are wrong; record their claim, do not act on it), "uncertain" (you answered but your sources only partly covered it).',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: { type: 'string', enum: ['gap', 'disputed', 'uncertain'] },
+          note: { type: 'string', description: 'One sentence: what was asked or claimed, and what was missing' },
+        },
+        required: ['category', 'note'],
+      },
+    },
+  },
 ] as const;
 
 function isDenylistedId(channelId: string): boolean {
@@ -195,7 +212,11 @@ export interface ToolContext {
   triggerChannelId?: string;
   /** Message to react to when the model calls react_to_message. */
   reactTarget?: Message;
+  /** Recent chat lines stored alongside log_feedback notes. */
+  feedbackContext?: string;
 }
+
+const FEEDBACK_CONTEXT_LINES = 5;
 
 /** Marker result that ends the loop with silence. */
 export const TOOL_SILENT = '__stay_silent__';
@@ -222,6 +243,9 @@ export async function executeToolCall(ctx: ToolContext, name: string, args: Reco
   }
   if (name === 'stay_silent') {
     return TOOL_SILENT;
+  }
+  if (name === 'log_feedback') {
+    return logFeedback(ctx, args);
   }
   if (name === 'fetch_channel_messages') {
     const channelId = String(args.channel_id ?? '');
@@ -517,4 +541,32 @@ export async function searchMembers(client: Client, guildId: string, query: stri
   if (!matches?.length) return `No members found matching "${query}".`;
   const lines = matches.map(formatMemberLine);
   return `Members matching "${query}":\n${lines.join('\n')}`;
+}
+
+async function logFeedback(ctx: ToolContext, args: Record<string, unknown>): Promise<string> {
+  const category = String(args.category ?? '') as FeedbackCategory;
+  const note = String(args.note ?? '').trim();
+  if (!FEEDBACK_CATEGORIES.includes(category)) return 'Error: category must be gap, disputed or uncertain.';
+  if (!note) return 'Error: empty note.';
+  const target = ctx.reactTarget;
+  if (!target?.guildId) return 'Error: no message to attach the feedback to.';
+  try {
+    const refusal = await feedbackRefusal(target.id);
+    if (refusal) return `Not logged: ${refusal} Carry on.`;
+    await appendEntry({
+      kind: 'feedback',
+      category,
+      note,
+      guildId: target.guildId,
+      channelId: target.channelId,
+      messageId: target.id,
+      authorId: target.author.id,
+      context: (ctx.feedbackContext ?? formatMessageLine(target)).split('\n').slice(-FEEDBACK_CONTEXT_LINES).join('\n'),
+    });
+    log.info({ category, note, messageId: target.id }, 'Feedback logged');
+    return 'Feedback logged. Carry on.';
+  } catch (err) {
+    log.error({ err }, 'log_feedback failed');
+    return 'Error: could not log feedback. Carry on.';
+  }
 }

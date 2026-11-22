@@ -1,7 +1,10 @@
 import type { Client, Message } from 'discord.js';
+import { MENTION_FACTS_PROMPT, matchesCorrectionTrigger } from '../corrections/facts.js';
+import { isCorrectionPost, startCorrectionCooldown } from '../corrections/watcher.js';
 import { getHistoryContext } from '../history.js';
 import { safeGenerateSpaceReply } from '../llm/rebecca.js';
 import { root as log } from '../logger.js';
+import { isRebeccaSummoned } from './summon.js';
 import type { Meme } from './types.js';
 
 const TYPING_INTERVAL_MS = 8_000;
@@ -76,13 +79,15 @@ function halloweenFlavor(now: Date = new Date(), rng: () => number = Math.random
   return rng() < chance ? HALLOWEEN_PROMPT : undefined;
 }
 
+async function needsStarPilotFacts(message: Message): Promise<boolean> {
+  if (matchesCorrectionTrigger(message.content)) return true;
+  const repliedToId = message.reference?.messageId;
+  return repliedToId ? isCorrectionPost(repliedToId) : false;
+}
+
 export const rebeccaReply: Meme = {
   name: 'rebecca-reply',
-  shouldFire: (message, client) => {
-    if (client.user && message.mentions.has(client.user)) return true;
-    const content = message.content.toLowerCase();
-    return content.includes('uwu') || content.includes('owo');
-  },
+  shouldFire: (message, client) => isRebeccaSummoned(message, client),
   run: async (message: Message, client: Client) => {
     const history = await getHistoryContext(message.channel).catch(() => '');
     let typing = true;
@@ -93,7 +98,10 @@ export const rebeccaReply: Meme = {
       }
     })();
     try {
-      const extraPrompt = [rollBehavior(), halloweenFlavor()].filter(Boolean).join('\n\n') || undefined;
+      const withFacts = await needsStarPilotFacts(message);
+      const extraPrompt = withFacts
+        ? MENTION_FACTS_PROMPT
+        : [rollBehavior(), halloweenFlavor()].filter(Boolean).join('\n\n') || undefined;
       const outcome = await safeGenerateSpaceReply(history, {
         extraSystemPrompt: extraPrompt,
         client,
@@ -101,6 +109,7 @@ export const rebeccaReply: Meme = {
       });
       if (outcome.kind === 'silent') return;
       const sent = await message.reply(outcome.text);
+      if (withFacts) startCorrectionCooldown(message.channelId);
       // Discord generates link previews even for named markdown links; suppress them.
       await sent.suppressEmbeds().catch((err) => log.warn({ err }, 'Failed to suppress embeds'));
     } finally {

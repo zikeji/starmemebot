@@ -5,6 +5,8 @@ import { root as log } from './logger.js';
 import './handlers/reactions.js';
 import './handlers/interactions.js';
 import './handlers/summarize.js';
+import './handlers/corrections.js';
+import './handlers/self-learning.js';
 
 const config = loadConfig();
 
