@@ -25,7 +25,11 @@ describe('resolveCandidateTags', () => {
   });
 
   it('drops tags for people who are not in the check, which checkTargets then rejects', () => {
-    const text = resolveCandidateTags('{{P9}} hi', ['1']);
-    expect(checkTargets(text, ['1']).addressed).toEqual([]);
+    const text = resolveCandidateTags('{{P9}} hi', ['1', '2']);
+    expect(checkTargets(text, ['1', '2']).addressed).toEqual([]);
+  });
+
+  it('recovers a garbled tag when there is only one candidate', () => {
+    expect(resolveCandidateTags('{{sacesb}} flash it', ['1'])).toBe('<@1> flash it');
   });
 });

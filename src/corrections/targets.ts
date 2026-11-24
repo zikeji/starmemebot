@@ -5,8 +5,8 @@ export function candidateTag(index: number): string {
 }
 
 export function resolveCandidateTags(text: string, candidateIds: string[]): string {
-  return text.replace(/\{\{P(\d+)\}\}/g, (_tag, n: string) => {
-    const id = candidateIds[Number(n) - 1];
+  return text.replace(/\{\{(?:P(\d+)|[^{}]*)\}\}/g, (_tag, n?: string) => {
+    const id = candidateIds.length === 1 ? candidateIds[0] : candidateIds[Number(n) - 1];
     return id ? `<@${id}>` : '';
   });
 }
