@@ -50,6 +50,11 @@ function holidayFlavor(now: Date, rng: () => number): string | undefined {
   return rng() < chance ? HOLIDAY_PROMPT : undefined;
 }
 
+export function seasonalAccent(now: Date = new Date(), rng: () => number = Math.random): string | undefined {
+  const emoji = new Map([[HALLOWEEN_PROMPT, '🎃'], [THANKSGIVING_PROMPT, '🥧'], [HOLIDAY_PROMPT, '🎄']]).get(seasonalFlavor(now, rng) ?? '');
+  return emoji && `Seasonal accent: you may use one ${emoji} emoji. No words about the season.`;
+}
+
 export function seasonalFlavor(now: Date = new Date(), rng: () => number = Math.random): string | undefined {
   return halloweenFlavor(now, rng) ?? thanksgivingFlavor(now, rng) ?? holidayFlavor(now, rng);
 }

@@ -10,16 +10,20 @@ export const STARPILOT_7_FACTS = [
   'StarPilot 7.0 facts (from the maintainers):',
   '- StarPilot software versions are called "branches", never "update channels" or "release channels" (the device UI calls them branches). Discord channels are still channels.',
   '- The stable branch is `stable` (formerly `StarPilot`). The testing branch is `testing` (formerly `Dom`).',
-  '- The old `Dom` and `StarPilot` install links still work for existing installs, which switch over once on their own. Fresh installs should always use the new names.',
+  '- Existing installs on the old `Dom` or `StarPilot` branch switch to the new name once on their own. That is only for people already on one of them: never mention the old names or links to someone doing a fresh install, just give the new install string.',
   '- `dev` is the maintainer\'s personal branch, not for users.',
   '- Install strings: `starpilothq/stable` and `starpilothq/testing`. Always tell people to type it all lowercase, exactly as written.',
-  '- The GitHub repo is `StarPilotHQ/StarPilot` (it moved from `firestar5683/StarPilot`).',
-  `- Pull requests target the \`stable\` branch. Once a PR is open, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> to discuss it.`,
+  '- The GitHub repo is `StarPilotHQ/StarPilot` (it moved from `firestar5683/StarPilot`). Other people have their own forks; a link to one is not a mistake and needs no correction.',
+  `- Pull requests are opened against the \`stable\` branch so CI can check them, but merged changes go out on \`testing\` first. This is for people asking about PRs, not for guessing which branch has a model or feature. Once a PR is open, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> to discuss it.`,
   '- Stuck on the boot logo or a loading screen, or an install keeps failing: try the reset first. Unplug the comma, wait 60 seconds, plug it back in and immediately tap the screen repeatedly until the reset prompt appears (comma 4: "reset & erase" then swipe; comma 3/3X: follow the Confirm prompts), then reinstall with the install string. A reset erases recordings and settings. Steps: [If You Cannot Open Settings](https://wiki.firestar.link/software/starpilot/#if-you-cannot-open-settings).',
   '- Flashing and recovery for StarPilot: https://flash.firestar.link installs StarPilot\'s AGNOS directly and has other recovery tools. Suggest it when a StarPilot user asks how to flash or recover, or the reset did not get them unstuck. Never correct people for having used flash.comma.ai or another flasher; those work too.',
   '- Leaving StarPilot (going back to stock openpilot or another fork): flash.firestar.link handles this too. Steps: open https://flash.firestar.link, under Recovery options check "Flash AGNOS", check "Other" under StarPilot Branch, enter `commaai` as the GitHub username and `master` as the branch (or the other fork\'s username and branch), and make sure "Delete old data" and "Install commaai (master)" are both checked.',
-  `- Sharing logs: follow https://firestar.link/logs. In connect.comma.ai (signed in to the account the device is paired to), open the route, select the segments where it happened, then Files -> "upload all logs". Never DM logs to firestar, di31 or anyone else.`,
-  `- Where the uploaded route goes: if a maintainer or Sage in the conversation (marked [trusted helper] in the chat context) asked for logs and did not ask for a ticket, the person can share it right there with </share-route:${SHARE_ROUTE_COMMAND_ID}>. Otherwise, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> with the route and the approximate minute.`,
+  '- Driving logs (steering, braking, AOL, fingerprinting): follow https://firestar.link/logs. In connect.comma.ai (signed in to the account the device is paired to), open the route, select the segments where it happened, then Files and upload next to "All logs". A route that has not shown up yet usually means the comma needs longer on Wi-Fi. If asked to make it public: More info -> Public access.',
+  `- Where a route goes: if a [trusted helper] in the conversation asked for logs and did not ask for a ticket, share it right there with </share-route:${SHARE_ROUTE_COMMAND_ID}>. Otherwise, open a ticket in <#${SUBMIT_FEEDBACK_CHANNEL_ID}> with the route and the approximate minute. Logs should not be DMed, but only say so to someone who proposes a DM.`,
+  '- StarPort connection problems use different logs from driving routes: Galaxy -> StarPort -> Connection Logs -> "Send StarPort logs" (or "Download all logs" and attach the zip to a ticket). Do not send someone with a StarPort connection problem to connect.comma.ai.',
+  '- iPhone app problems: in the app, Settings -> Logs & support -> Report a problem on Discord.',
+  '- The Bug Report form needs a real route ID and rejects anything else. If there is no route (the install never boots or never goes onroad), the Feedback form has no route field.',
+  '- "Route rejected, older build than required" on a ticket: the drive was recorded on a build older than the fix. Update to the build the ticket asks for, drive again, and submit the new route; the date of the drive is not the problem.',
   '- To switch branches in Galaxy: Tools -> System Tools -> Software & Updates -> Advanced options -> Branch.',
   `- Wiki section for all of this: [the migration guide](${MIGRATION_WIKI_URL}).`,
 ].join('\n');
@@ -51,8 +55,12 @@ const TRIGGER_PATTERNS: RegExp[] = [
   /\bhow (do|can|should) (i|we|you)\b.{0,30}\blogs?\b/i,
   /connect\.comma\.ai/i,
   /\bshare-route\b/i,
+  /\broute\s?id\b/i,
 ];
 
-export function matchesCorrectionTrigger(content: string): boolean {
+const OTHER_FORK_LINK = /https?:\/\/(www\.)?github\.com\/(?!firestar5683\/)\S+/gi;
+
+export function matchesCorrectionTrigger(rawContent: string): boolean {
+  const content = rawContent.replace(OTHER_FORK_LINK, '');
   return TRIGGER_PATTERNS.some((pattern) => pattern.test(content)) || installStringIssues(content).length > 0;
 }

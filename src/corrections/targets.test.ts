@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkTargets } from './targets.js';
+import { candidateTag, checkTargets, resolveCandidateTags } from './targets.js';
 
 describe('checkTargets', () => {
   it('flags mentions of people outside the check', () => {
@@ -15,5 +15,21 @@ describe('checkTargets', () => {
 
   it('ignores channel and role mentions', () => {
     expect(checkTargets('<@1> open a ticket in <#99> or ask <@&77>', ['1'])).toEqual({ addressed: ['1'], strays: [] });
+  });
+});
+
+describe('resolveCandidateTags', () => {
+  it('turns tags into exact candidate mentions so ids are never copied by the model', () => {
+    const ids = ['336866382404648961', '2'];
+    expect(resolveCandidateTags(`${candidateTag(0)} use \`testing\`\n${candidateTag(1)} hi`, ids)).toBe('<@336866382404648961> use `testing`\n<@2> hi');
+  });
+
+  it('drops tags for people who are not in the check, which checkTargets then rejects', () => {
+    const text = resolveCandidateTags('{{P9}} hi', ['1', '2']);
+    expect(checkTargets(text, ['1', '2']).addressed).toEqual([]);
+  });
+
+  it('recovers a garbled tag when there is only one candidate', () => {
+    expect(resolveCandidateTags('{{sacesb}} flash it', ['1'])).toBe('<@1> flash it');
   });
 });

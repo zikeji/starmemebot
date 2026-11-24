@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { seasonalFlavor } from './memes/seasonal.js';
+import { seasonalAccent, seasonalFlavor } from './memes/seasonal.js';
 
 const at = (month: number, day: number) => new Date(2026, month - 1, day, 12);
 const roll = (value: number) => () => value;
@@ -45,5 +45,13 @@ describe('seasonalFlavor', () => {
   it('keeps the higher chance on Halloween night', () => {
     expect(seasonalFlavor(at(10, 30), roll(0.7))).toBeUndefined();
     expect(seasonalFlavor(at(10, 31), roll(0.7))).toMatch(/Halloween/);
+  });
+});
+
+describe('seasonalAccent', () => {
+  it('allows one emoji and none of the seasonal prose', () => {
+    expect(seasonalAccent(at(11, 23), roll(0))).toBe('Seasonal accent: you may use one 🥧 emoji. No words about the season.');
+    expect(seasonalAccent(at(12, 10), roll(0))).toContain('🎄');
+    expect(seasonalAccent(at(7, 4), roll(0))).toBeUndefined();
   });
 });
