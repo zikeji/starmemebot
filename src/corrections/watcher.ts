@@ -4,7 +4,7 @@ import { formatMessageLine } from '../history.js';
 import { generateCorrection, type CorrectionCandidate } from '../llm/corrections.js';
 import { createLogger } from '../logger.js';
 import { rollBehavior } from '../memes/moods.js';
-import { seasonalFlavor } from '../memes/seasonal.js';
+import { seasonalAccent } from '../memes/seasonal.js';
 import { isRebeccaSummoned } from '../memes/summon.js';
 import { appendEntry, type ActivityOutcome } from '../self-learning/store.js';
 import { createStore } from '../store.js';
@@ -131,17 +131,17 @@ async function fireCheck(check: FiredCheck): Promise<void> {
     return;
   }
 
+  const { trustedRoleIds } = loadConfig();
+  const contextLine = (m: Message) => `${isTrusted(m, trustedRoleIds) ? '[trusted helper] ' : ''}${formatMessageLine(m)}`;
   const inWindow = new Set(window.map((m) => m.id));
-  const scrolledOff = triggers.filter((m) => !inWindow.has(m.id)).map((m) => `(earlier trigger message) ${formatMessageLine(m)}`);
+  const scrolledOff = triggers.filter((m) => !inWindow.has(m.id)).map((m) => `(earlier trigger message) ${contextLine(m)}`);
   const repliedLines: string[] = [];
   for (const trigger of triggers) {
     const refId = trigger.reference?.messageId;
     if (!refId || inWindow.has(refId)) continue;
     const ref = await trigger.fetchReference().catch(() => null);
-    if (ref && !isUserDenylisted(ref.author.id)) repliedLines.push(`(earlier message being replied to) ${formatMessageLine(ref)}`);
+    if (ref && !isUserDenylisted(ref.author.id)) repliedLines.push(`(earlier message being replied to) ${contextLine(ref)}`);
   }
-  const { trustedRoleIds } = loadConfig();
-  const contextLine = (m: Message) => `${isTrusted(m, trustedRoleIds) ? '[trusted helper] ' : ''}${formatMessageLine(m)}`;
   const chatContext = [...repliedLines, ...scrolledOff, ...window.map(contextLine)].join('\n');
 
   const candidates: CorrectionCandidate[] = check.entries.map((entry) => {
@@ -156,7 +156,7 @@ async function fireCheck(check: FiredCheck): Promise<void> {
 
   let outcome;
   try {
-    const flavor = [rollBehavior(), seasonalFlavor()].filter(Boolean).join('\n\n') || undefined;
+    const flavor = [rollBehavior(), seasonalAccent()].filter(Boolean).join('\n\n') || undefined;
     outcome = await generateCorrection(client, anchor, chatContext, candidates, flavor);
   } catch (err) {
     log.error({ err }, 'Correction LLM call failed');

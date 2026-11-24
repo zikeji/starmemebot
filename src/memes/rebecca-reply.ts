@@ -7,7 +7,7 @@ import { safeGenerateSpaceReply } from '../llm/rebecca.js';
 import { root as log } from '../logger.js';
 import { idsInContext, stripUnknownMentions } from './mentions.js';
 import { rollBehavior } from './moods.js';
-import { seasonalFlavor } from './seasonal.js';
+import { seasonalAccent, seasonalFlavor } from './seasonal.js';
 import { isRebeccaSummoned } from './summon.js';
 import type { Meme } from './types.js';
 
@@ -37,7 +37,7 @@ export const rebeccaReply: Meme = {
       const typoPrompt = typos.length
         ? `Install string check (computed by code, reliable). Point out the exact mistake even if they asked about something else:\n${typos.map((t) => `- ${t}`).join('\n')}`
         : undefined;
-      const flavor = [rollBehavior(), seasonalFlavor()].filter(Boolean).join('\n\n');
+      const flavor = [rollBehavior(), withFacts ? seasonalAccent() : seasonalFlavor()].filter(Boolean).join('\n\n');
       const facts = withFacts
         ? [MENTION_FACTS_PROMPT, typoPrompt, flavor && 'The mood or seasonal flavor below is a light touch on tone only (a short phrase or an emoji at most); the help comes first and the facts stay exact.']
         : [];

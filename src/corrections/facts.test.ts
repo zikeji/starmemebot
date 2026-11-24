@@ -18,6 +18,8 @@ describe('matchesCorrectionTrigger', () => {
     'Is there instructions how to grab a log',
     'How do i exportthe logs you need anddo i DM them to you?',
     'how do I send logs for my fingerprint',
+    'I tried to create a bug report but it needs a routeid',
+    'https://github.com/firestar5683/StarPilot',
   ])('queues %s', (content) => expect(matchesCorrectionTrigger(content)).toBe(true));
 
   it.each([
@@ -26,5 +28,6 @@ describe('matchesCorrectionTrigger', () => {
     'my pedal throws propulsion errors',
     'domestic flights are cheap',
     'I need to log in to galaxy again',
+    'https://github.com/NanoMetere/StarPilot',
   ])('ignores %s', (content) => expect(matchesCorrectionTrigger(content)).toBe(false));
 });
