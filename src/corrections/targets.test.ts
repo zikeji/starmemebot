@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { candidateTag, checkTargets, resolveCandidateTags } from './targets.js';
+import { candidateTag, checkTargets, resolveCandidateTags, saysSomething } from './targets.js';
 
 describe('checkTargets', () => {
   it('flags mentions of people outside the check', () => {
@@ -25,11 +25,26 @@ describe('resolveCandidateTags', () => {
   });
 
   it('drops tags for people who are not in the check, which checkTargets then rejects', () => {
-    const text = resolveCandidateTags('{{P9}} hi', ['1', '2']);
+    const text = resolveCandidateTags('@P9 hi', ['1', '2']);
     expect(checkTargets(text, ['1', '2']).addressed).toEqual([]);
   });
 
-  it('recovers a garbled tag when there is only one candidate', () => {
-    expect(resolveCandidateTags('{{sacesb}} flash it', ['1'])).toBe('<@1> flash it');
+  it('supplies the mention when the only candidate was left untagged', () => {
+    expect(resolveCandidateTags('flash it', ['1'])).toBe('<@1> flash it');
+    expect(resolveCandidateTags('@P1 flash it', ['1'])).toBe('<@1> flash it');
+    expect(resolveCandidateTags('@HannibaL flash it', ['1'])).toBe('<@1> flash it');
+  });
+});
+
+describe('saysSomething', () => {
+  it('rejects a bare mention or emoji', () => {
+    expect(saysSomething('<@442416944164110336> 💤')).toBe(false);
+    expect(saysSomething('<@1>')).toBe(false);
+    expect(saysSomething('<@1> ok (・ω・)')).toBe(false);
+  });
+
+  it('accepts a short real answer', () => {
+    expect(saysSomething('<@1> use `starpilothq/stable`')).toBe(true);
+    expect(saysSomething('<@1> https://firestar.link/logs')).toBe(true);
   });
 });

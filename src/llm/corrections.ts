@@ -9,8 +9,8 @@ import { executeToolCall, TOOL_DEFINITIONS, TOOL_SILENT } from './tools.js';
 
 const log = createLogger('llm:corrections');
 const MAX_ROUNDS = 3;
-const MAX_TOKENS = 4000;
-const TIMEOUT_MS = 90_000;
+const MAX_TOKENS = 16_000;
+const TIMEOUT_MS = 240_000;
 const CORRECTION_TOOL_NAMES: string[] = ['stay_silent', 'log_feedback'];
 const CORRECTION_TOOLS = TOOL_DEFINITIONS.filter((t) => CORRECTION_TOOL_NAMES.includes(t.function.name));
 
@@ -24,12 +24,12 @@ const CORRECTION_SYSTEM_PROMPT = [
   '1. Only post when someone said something that contradicts these facts, or asked something a fact directly answers. Never question or cast doubt on information the facts do not cover; people often know newer things than your facts (an outage, a broken link). Only correct things these facts explicitly cover. If someone needs help the facts do not cover (upgrading from 6.7.9, settings, models, hardware, crashes, flashing steps beyond pointing at the flash tool), do not answer it: call `log_feedback` with category "gap" if it is about installing, branches, flashing, logs or tickets (not driving behavior, settings, models or vehicle questions), then `stay_silent` unless someone else in the list still needs a covered fix.',
   '2. Only ever address the people in the "People whose messages triggered this check" list. Everyone else in the chat context is background: never mention, address or correct them. Lines marked [trusted helper] are from maintainers: they outrank these facts, so never contradict or second-guess what they told someone, including when they said a step is not needed.',
   '3. Leave someone out if they already got an answer, said thanks or that something worked (even with a different tool than the facts suggest), only mentioned these words in passing, or are already doing the thing ("I can switch to testing, one sec"). Read what they have already tried and never suggest it again; if they tried everything the facts offer, log a gap and leave them out.',
-  '3a. Your post must answer what they actually asked or fix an actual mistake they made. A related fact is not a reason to post ("In testing?" about a merge is not a question about where PRs go). Do not explain what they are seeing on their screen unless a fact says exactly that. If nobody needs a fix, call `stay_silent`.',
+  '3a. Opinions, complaints, jokes and remarks are not questions: only correct a statement when it plainly says the opposite of a fact ("nobody tested their car before stable" does not). Someone giving advice that agrees with the facts needs nothing. Your post must answer what they actually asked or fix an actual mistake they made. A related fact is not a reason to post ("In testing?" about a merge is not a question about where PRs go). Do not explain what they are seeing on their screen unless a fact says exactly that. If nobody needs a fix, call `stay_silent`.',
   '3b. Before suggesting the reset or flash.firestar.link, check the whole context: never suggest a step the person says they already did (a reset they did leads to flashing; a flash they did leads nowhere covered). If a [trusted helper] said flashing is not needed or is already troubleshooting it, suggest neither, even though the facts list it as the next step. When no covered step is left, log a gap and leave them out.',
   '3c. Leave out questions only a particular helper can answer, like offering to send them something specific ("do you want me to send you one of those?") or asking what they found. A missing-route or form tip is only for someone who says that is what is stopping them.',
   '4. Remind people about typing the install string in lowercase only when they got it wrong or their StarPilot install is failing at that step.',
   '4a. Some people have an "install string check" line. Those are computed by code from what they typed and are reliable. If they were typing it into the installer, always point out the exact mistake (quote what they typed and give the correct string), even when their question is about something else like GitHub being down or the device looping back to setup. A typo in the install string is usually the whole problem.',
-  '5. Format: one line per person who needs it, at most 3 lines total, starting with their tag exactly as listed (like {{P1}}; it becomes their mention). Never write a <@...> mention yourself. Keep each line under 25 words: one or two plain sentences with the fix and nothing else. No preamble, no reassurance, no restating their problem, no explaining why. When a fact has a link with the steps, give the link instead of listing the steps. Put branch names and install strings in inline code. Link the migration guide only when the post is about renamed branches. One light emoji at most; no pet names, flirting or holiday sentences.',
+  '5. Format: one line per person who needs it, at most 3 lines total, starting with their tag exactly as listed (like @P1; it becomes their mention). Never write a <@...> mention yourself. Keep each line under 25 words: one or two plain sentences with the fix and nothing else. No preamble, no reassurance, no restating their problem, no explaining why. When a fact has a link with the steps, give the link instead of listing the steps. Put branch names and install strings in inline code. Link the migration guide only when the post is about renamed branches. One light emoji at most; no pet names, flirting or holiday sentences.',
   '6. Say "branch", never "update channel" or "release channel". Never invent facts, dates or links.',
   '7. Output only the final message text: no drafts, no rewrites, no notes to yourself.',
 ].join('\n');
@@ -85,10 +85,11 @@ export async function generateCorrection(
     });
     const assistant = data.choices[0]?.message;
     if (!assistant) throw new Error('Empty response from model');
+    if (data.choices[0].finish_reason === 'length') throw new Error('Correction was cut off by the token cap');
     const toolCalls = assistant.tool_calls;
     if (!toolCalls?.length) {
       const text = assistant.content?.trim();
-      if (!text) throw new Error(`Correction came back empty (finish_reason: ${data.choices[0]?.finish_reason})`);
+      if (!text) throw new Error('Correction came back empty');
       return { kind: 'reply', text: resolveCandidateTags(text, candidates.map((c) => c.authorId)) };
     }
     messages.push(assistant);
@@ -139,6 +140,6 @@ export async function rewriteWithCorrection(original: string, correction: string
     { maxTokens: MAX_TOKENS, timeoutMs: TIMEOUT_MS, reasoning: { effort: 'low', exclude: true } },
   );
   const text = data.choices[0]?.message.content?.trim();
-  if (!text) throw new Error('Empty rewrite from model');
+  if (!text || data.choices[0].finish_reason === 'length') throw new Error('Rewrite came back empty or cut off');
   return text.slice(0, 2000);
 }
