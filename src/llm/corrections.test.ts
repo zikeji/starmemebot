@@ -21,7 +21,12 @@ describe('generateCorrection', () => {
 
   it('treats a reply cut off by the token cap as an error, not as silence', async () => {
     modelReturns('length', { role: 'assistant', content: '' });
-    await expect(run()).rejects.toThrow('finish_reason: length');
+    await expect(run()).rejects.toThrow('cut off');
+  });
+
+  it('never posts the fragment of a cut-off reply', async () => {
+    modelReturns('length', { role: 'assistant', content: '@' });
+    await expect(run()).rejects.toThrow('cut off');
   });
 
   it('stays silent only when the model asks to', async () => {
@@ -34,7 +39,7 @@ describe('generateCorrection', () => {
   });
 
   it('fills in the mention for a candidate tag', async () => {
-    modelReturns('stop', { role: 'assistant', content: '{{P1}} use `stable`' });
+    modelReturns('stop', { role: 'assistant', content: '@P1 use `stable`' });
     expect(await run()).toEqual({ kind: 'reply', text: '<@42> use `stable`' });
   });
 });

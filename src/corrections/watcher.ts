@@ -10,7 +10,7 @@ import { appendEntry, type ActivityOutcome } from '../self-learning/store.js';
 import { createStore } from '../store.js';
 import { matchesCorrectionTrigger } from './facts.js';
 import { installStringIssues } from './install-string.js';
-import { checkTargets } from './targets.js';
+import { checkTargets, saysSomething } from './targets.js';
 import { CorrectionScheduler, type CheckEntry, type DroppedCheck, type FiredCheck } from './scheduler.js';
 
 const log = createLogger('corrections');
@@ -171,8 +171,8 @@ async function fireCheck(check: FiredCheck): Promise<void> {
 
   const pingable = check.entries.map((e) => e.authorId);
   const { addressed, strays } = checkTargets(outcome.text, pingable);
-  if (strays.length > 0 || addressed.length === 0) {
-    log.warn({ channelId: check.channelId, strays, addressed }, 'Correction addressed someone outside the check; not posting');
+  if (strays.length > 0 || addressed.length === 0 || !saysSomething(outcome.text)) {
+    log.warn({ channelId: check.channelId, strays, addressed }, 'Correction had a bad target or no content; not posting');
     await endWithoutPost(guildId, check, 'rejected', outcome.text);
     return;
   }
